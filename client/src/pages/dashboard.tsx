@@ -27,7 +27,7 @@ interface Station {
 const HOURLY_RATE = 16;
 const RATE_PER_SECOND = HOURLY_RATE / 3600;
 
-const menuItems: MenuItem[] = [
+const initialMenuItems: MenuItem[] = [
   { id: "1", name: "Vanilla Latte", price: 4.99, category: "Lattes" },
   { id: "2", name: "Caramel Latte", price: 4.99, category: "Lattes" },
   { id: "3", name: "Brown Sugar Latte", price: 4.99, category: "Lattes" },
@@ -48,6 +48,7 @@ const menuItems: MenuItem[] = [
 export default function Dashboard() {
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
   const [stations, setStations] = useState<Station[]>([
     { id: "P1", name: "Pool Table 1", type: "pool", isActive: false, items: {} },
     { id: "P2", name: "Pool Table 2", type: "pool", isActive: false, items: {} },
@@ -103,6 +104,22 @@ export default function Dashboard() {
       setTempItems({ ...selectedStation.items });
       setAddItemsOpen(true);
     }
+  };
+
+  const handleAddCustomItem = (name: string, price: number) => {
+    const customId = `custom-${Date.now()}`;
+    const newItem: MenuItem = {
+      id: customId,
+      name,
+      price,
+      category: "Custom",
+    };
+    setMenuItems((prev) => [...prev, newItem]);
+    setTempItems((prev) => ({ ...prev, [customId]: 1 }));
+    toast({
+      title: "Custom Item Added",
+      description: `${name} ($${price.toFixed(2)}) added to cart`,
+    });
   };
 
   const handleConfirmItems = () => {
@@ -268,6 +285,7 @@ export default function Dashboard() {
                 return { ...prev, [itemId]: newCount };
               })
             }
+            onAddCustomItem={handleAddCustomItem}
             onConfirm={handleConfirmItems}
           />
 

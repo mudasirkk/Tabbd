@@ -45,6 +45,9 @@ export default function AddItemsDialogExample() {
         selectedItems={selectedItems}
         onAddItem={handleAddItem}
         onRemoveItem={handleRemoveItem}
+        onAddCustomItem={(name, price) => {
+          console.log("Custom item added:", name, price);
+        }}
         onConfirm={() => {
           console.log("Items confirmed:", selectedItems);
           setOpen(false);

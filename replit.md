@@ -35,6 +35,11 @@ Preferred communication style: Simple, everyday language.
 - Local component state for UI interactions (dialogs, forms)
 - Real-time timer logic handled client-side with useEffect hooks
 - Session data maintained in component state (stations array with active/inactive status)
+- **Browser localStorage** for session persistence across page refreshes and browser switches
+  - Stations state persisted with key: 'poolcafe_stations'
+  - Menu items (including custom items) persisted with key: 'poolcafe_menu'
+  - Automatic save on state changes, automatic load on component mount
+  - Error handling for corrupted localStorage data with fallback to defaults
 - Toast notifications for user feedback
 
 ### Backend Architecture

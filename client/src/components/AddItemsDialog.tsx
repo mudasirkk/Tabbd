@@ -72,7 +72,7 @@ export function AddItemsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh]" data-testid="dialog-add-items">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col" data-testid="dialog-add-items">
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">Add Items to {stationName}</DialogTitle>
           <DialogDescription>
@@ -80,7 +80,7 @@ export function AddItemsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto pr-2 space-y-4">
           <Card className="p-4 bg-muted/50">
             <div className="space-y-3">
               <h3 className="font-semibold text-sm">Add Custom Item</h3>
@@ -127,73 +127,71 @@ export function AddItemsDialog({
 
           <Separator />
 
-          <ScrollArea className="max-h-96 pr-4">
-            <div className="space-y-6">
-              {categories.map((category) => (
-                <div key={category} className="space-y-3">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide" data-testid={`text-category-${category}`}>
-                    {category}
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {groupedItems[category].map((item) => (
-                      <Card
-                        key={item.id}
-                        className="p-3 hover-elevate cursor-pointer"
-                        onClick={() => onAddItem(item.id)}
-                        data-testid={`card-menu-item-${item.id}`}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="font-medium text-sm leading-tight" data-testid={`text-item-name-${item.id}`}>
-                              {item.name}
-                            </h4>
-                            {selectedItems[item.id] > 0 && (
-                              <Badge variant="default" className="text-xs" data-testid={`badge-item-count-${item.id}`}>
-                                {selectedItems[item.id]}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono font-semibold text-primary text-sm" data-testid={`text-item-price-${item.id}`}>
-                              ${item.price.toFixed(2)}
-                            </span>
-                            {selectedItems[item.id] > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-6 w-6"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onRemoveItem(item.id);
-                                  }}
-                                  data-testid={`button-decrease-${item.id}`}
-                                >
-                                  <Minus className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-6 w-6"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onAddItem(item.id);
-                                  }}
-                                  data-testid={`button-increase-${item.id}`}
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+          <div className="space-y-6 pb-4">
+            {categories.map((category) => (
+              <div key={category} className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide" data-testid={`text-category-${category}`}>
+                  {category}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {groupedItems[category].map((item) => (
+                    <Card
+                      key={item.id}
+                      className="p-3 hover-elevate cursor-pointer"
+                      onClick={() => onAddItem(item.id)}
+                      data-testid={`card-menu-item-${item.id}`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-medium text-sm leading-tight" data-testid={`text-item-name-${item.id}`}>
+                            {item.name}
+                          </h4>
+                          {selectedItems[item.id] > 0 && (
+                            <Badge variant="default" className="text-xs" data-testid={`badge-item-count-${item.id}`}>
+                              {selectedItems[item.id]}
+                            </Badge>
+                          )}
                         </div>
-                      </Card>
-                    ))}
-                  </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono font-semibold text-primary text-sm" data-testid={`text-item-price-${item.id}`}>
+                            ${item.price.toFixed(2)}
+                          </span>
+                          {selectedItems[item.id] > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-6 w-6"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRemoveItem(item.id);
+                                }}
+                                data-testid={`button-decrease-${item.id}`}
+                              >
+                                <Minus className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-6 w-6"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAddItem(item.id);
+                                }}
+                                data-testid={`button-increase-${item.id}`}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t">

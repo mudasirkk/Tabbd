@@ -1,9 +1,9 @@
 import { ActiveSessionPanel } from "../ActiveSessionPanel";
 
 const sampleItems = [
-  { id: "1", name: "Coffee", price: 3.0, quantity: 2 },
-  { id: "2", name: "Candy Bar", price: 2.5, quantity: 1 },
-  { id: "3", name: "Cake Slice", price: 4.5, quantity: 1 },
+  { id: "1", name: "Vanilla Latte", price: 4.99, quantity: 2 },
+  { id: "2", name: "Cookies", price: 1.99, quantity: 1 },
+  { id: "3", name: "Milk Cake", price: 5.99, quantity: 1 },
 ];
 
 export default function ActiveSessionPanelExample() {

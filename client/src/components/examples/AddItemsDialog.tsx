@@ -3,12 +3,13 @@ import { AddItemsDialog } from "../AddItemsDialog";
 import { Button } from "@/components/ui/button";
 
 const sampleMenuItems = [
-  { id: "1", name: "Candy Bar", price: 2.5 },
-  { id: "2", name: "Coffee", price: 3.0 },
-  { id: "3", name: "Cake Slice", price: 4.5 },
-  { id: "4", name: "Soda", price: 2.0 },
-  { id: "5", name: "Energy Drink", price: 3.5 },
-  { id: "6", name: "Chips", price: 2.25 },
+  { id: "1", name: "Vanilla Latte", price: 4.99, category: "Lattes" },
+  { id: "2", name: "Caramel Latte", price: 4.99, category: "Lattes" },
+  { id: "3", name: "Adeni Tea", price: 4.49, category: "Tea" },
+  { id: "4", name: "Berry Hibiscus Refresher", price: 4.49, category: "Refreshers" },
+  { id: "5", name: "Slushie", price: 2.99, category: "Slushies" },
+  { id: "6", name: "Cookies", price: 1.99, category: "Dessert" },
+  { id: "7", name: "Milk Cake", price: 5.99, category: "Dessert" },
 ];
 
 export default function AddItemsDialogExample() {

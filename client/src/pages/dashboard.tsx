@@ -28,14 +28,21 @@ const HOURLY_RATE = 16;
 const RATE_PER_SECOND = HOURLY_RATE / 3600;
 
 const menuItems: MenuItem[] = [
-  { id: "1", name: "Candy Bar", price: 2.5 },
-  { id: "2", name: "Coffee", price: 3.0 },
-  { id: "3", name: "Cake Slice", price: 4.5 },
-  { id: "4", name: "Soda", price: 2.0 },
-  { id: "5", name: "Energy Drink", price: 3.5 },
-  { id: "6", name: "Chips", price: 2.25 },
-  { id: "7", name: "Water", price: 1.5 },
-  { id: "8", name: "Ice Cream", price: 3.75 },
+  { id: "1", name: "Vanilla Latte", price: 4.99, category: "Lattes" },
+  { id: "2", name: "Caramel Latte", price: 4.99, category: "Lattes" },
+  { id: "3", name: "Brown Sugar Latte", price: 4.99, category: "Lattes" },
+  { id: "4", name: "Biscoff Latte", price: 4.99, category: "Lattes" },
+  { id: "5", name: "Pistachio Latte", price: 4.99, category: "Lattes" },
+  { id: "6", name: "Adeni Tea", price: 4.49, category: "Tea" },
+  { id: "7", name: "Berry Hibiscus Refresher", price: 4.49, category: "Refreshers" },
+  { id: "8", name: "Mango Dragon Fruit Refresher", price: 4.49, category: "Refreshers" },
+  { id: "9", name: "Strawberry Acai Refresher", price: 4.49, category: "Refreshers" },
+  { id: "10", name: "Pomegranate Refresher", price: 4.49, category: "Refreshers" },
+  { id: "11", name: "Blue Citrus Refresher", price: 4.49, category: "Refreshers" },
+  { id: "12", name: "Slushie", price: 2.99, category: "Slushies" },
+  { id: "13", name: "Cookies", price: 1.99, category: "Dessert" },
+  { id: "14", name: "Milk Cake", price: 5.99, category: "Dessert" },
+  { id: "15", name: "Banana Pudding", price: 4.49, category: "Dessert" },
 ];
 
 export default function Dashboard() {

@@ -45,21 +45,42 @@ const initialMenuItems: MenuItem[] = [
   { id: "15", name: "Banana Pudding", price: 4.49, category: "Dessert" },
 ];
 
+const initialStations: Station[] = [
+  { id: "P1", name: "Pool Table 1", type: "pool", isActive: false, items: {} },
+  { id: "P2", name: "Pool Table 2", type: "pool", isActive: false, items: {} },
+  { id: "P3", name: "Pool Table 3", type: "pool", isActive: false, items: {} },
+  { id: "P4", name: "Pool Table 4", type: "pool", isActive: false, items: {} },
+  { id: "P5", name: "Pool Table 5", type: "pool", isActive: false, items: {} },
+  { id: "P6", name: "Pool Table 6", type: "pool", isActive: false, items: {} },
+  { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: {} },
+  { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: {} },
+  { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: {} },
+];
+
+const STORAGE_KEYS = {
+  STATIONS: 'poolcafe_stations',
+  MENU: 'poolcafe_menu',
+};
+
+function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : defaultValue;
+  } catch (error) {
+    console.error(`Error loading ${key} from localStorage:`, error);
+    return defaultValue;
+  }
+}
+
 export default function Dashboard() {
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
-  const [stations, setStations] = useState<Station[]>([
-    { id: "P1", name: "Pool Table 1", type: "pool", isActive: false, items: {} },
-    { id: "P2", name: "Pool Table 2", type: "pool", isActive: false, items: {} },
-    { id: "P3", name: "Pool Table 3", type: "pool", isActive: false, items: {} },
-    { id: "P4", name: "Pool Table 4", type: "pool", isActive: false, items: {} },
-    { id: "P5", name: "Pool Table 5", type: "pool", isActive: false, items: {} },
-    { id: "P6", name: "Pool Table 6", type: "pool", isActive: false, items: {} },
-    { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: {} },
-    { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: {} },
-    { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: {} },
-  ]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => 
+    loadFromLocalStorage(STORAGE_KEYS.MENU, initialMenuItems)
+  );
+  const [stations, setStations] = useState<Station[]>(() => 
+    loadFromLocalStorage(STORAGE_KEYS.STATIONS, initialStations)
+  );
 
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [addItemsOpen, setAddItemsOpen] = useState(false);
@@ -73,6 +94,22 @@ export default function Dashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.STATIONS, JSON.stringify(stations));
+    } catch (error) {
+      console.error('Error saving stations to localStorage:', error);
+    }
+  }, [stations]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems));
+    } catch (error) {
+      console.error('Error saving menu items to localStorage:', error);
+    }
+  }, [menuItems]);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 

@@ -4,6 +4,14 @@
 
 Rack Em Up is a real-time pool cafe management system designed for tracking customer sessions across multiple station types (pool tables, gaming stations, and foosball tables). The application provides time-based billing, menu item management, and checkout functionality with a mobile-first design approach. Built as a full-stack TypeScript application using React for the frontend and Express for the backend, it emphasizes quick service operations and clear information display.
 
+## Key Features
+
+- **Multi-session Management**: Support for multiple concurrent active sessions across different stations
+- **Session Switcher**: Dropdown selector in detail panel for quick switching between active sessions (appears when 2+ sessions are active)
+- **Persistent Sessions**: LocalStorage-based persistence ensures sessions survive page refreshes and browser switches
+- **Real-time Tracking**: Live timers and automatic charge calculation for all active stations
+- **Mobile-optimized**: Touch-friendly interface designed for iPhone Safari and Chrome
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

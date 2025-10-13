@@ -13,6 +13,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 interface Station {
@@ -277,7 +284,31 @@ export default function Dashboard() {
 
           <div className="lg:col-span-1">
             {selectedStation?.isActive ? (
-              <div className="sticky top-24">
+              <div className="sticky top-24 space-y-4">
+                {activeStationsCount > 1 && (
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">
+                      Active Session
+                    </label>
+                    <Select
+                      value={selectedStationId || undefined}
+                      onValueChange={(value) => setSelectedStationId(value)}
+                    >
+                      <SelectTrigger data-testid="select-active-session">
+                        <SelectValue placeholder="Select a session" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stations
+                          .filter((s) => s.isActive)
+                          .map((station) => (
+                            <SelectItem key={station.id} value={station.id}>
+                              {station.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <ActiveSessionPanel
                   stationName={selectedStation.name}
                   timeElapsed={getTimeElapsed(selectedStation)}

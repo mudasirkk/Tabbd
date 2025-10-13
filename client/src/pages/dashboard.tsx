@@ -61,6 +61,7 @@ const initialStations: Station[] = [
   { id: "P6", name: "Pool Table 6", type: "pool", isActive: false, items: {} },
   { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: {} },
   { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: {} },
+  { id: "G3", name: "Gaming Station 3", type: "gaming", isActive: false, items: {} },
   { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: {} },
 ];
 

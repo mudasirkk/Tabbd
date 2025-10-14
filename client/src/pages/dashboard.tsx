@@ -27,7 +27,9 @@ interface Station {
   name: string;
   type: StationType;
   isActive: boolean;
+  isPaused?: boolean;
   startTime?: number;
+  pausedTime?: number;
   items: { [itemId: string]: number };
 }
 
@@ -138,9 +140,41 @@ export default function Dashboard() {
 
   const handleStopSession = (stationId: string) => {
     const station = stations.find((s) => s.id === stationId);
-    if (station?.isActive) {
-      setSelectedStationId(stationId);
-      setCheckoutOpen(true);
+    if (station?.isActive && !station.isPaused) {
+      setStations((prev) =>
+        prev.map((s) =>
+          s.id === stationId
+            ? { ...s, isPaused: true, pausedTime: Date.now() }
+            : s
+        )
+      );
+      toast({
+        title: "Session Paused",
+        description: `Timer paused for ${station.name}`,
+      });
+    }
+  };
+
+  const handleResumeSession = (stationId: string) => {
+    const station = stations.find((s) => s.id === stationId);
+    if (station?.isActive && station.isPaused && station.pausedTime && station.startTime) {
+      const pausedDuration = Date.now() - station.pausedTime;
+      setStations((prev) =>
+        prev.map((s) =>
+          s.id === stationId
+            ? { 
+                ...s, 
+                isPaused: false, 
+                pausedTime: undefined,
+                startTime: s.startTime! + pausedDuration
+              }
+            : s
+        )
+      );
+      toast({
+        title: "Session Resumed",
+        description: `Timer resumed for ${station.name}`,
+      });
     }
   };
 
@@ -187,7 +221,7 @@ export default function Dashboard() {
       setStations((prev) =>
         prev.map((s) =>
           s.id === selectedStationId
-            ? { ...s, isActive: false, startTime: undefined, items: {} }
+            ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: {} }
             : s
         )
       );
@@ -202,6 +236,9 @@ export default function Dashboard() {
 
   const getTimeElapsed = (station: Station): number => {
     if (!station.isActive || !station.startTime) return 0;
+    if (station.isPaused && station.pausedTime) {
+      return Math.floor((station.pausedTime - station.startTime) / 1000);
+    }
     return Math.floor((currentTime - station.startTime) / 1000);
   };
 
@@ -268,10 +305,16 @@ export default function Dashboard() {
                     name={station.name}
                     type={station.type}
                     isActive={station.isActive}
+                    isPaused={station.isPaused}
                     timeElapsed={getTimeElapsed(station)}
                     currentCharge={getTimeCharge(station)}
                     onStart={() => handleStartSession(station.id)}
                     onStop={() => handleStopSession(station.id)}
+                    onResume={() => handleResumeSession(station.id)}
+                    onCompletePayment={() => {
+                      setSelectedStationId(station.id);
+                      setCheckoutOpen(true);
+                    }}
                     onClick={() => {
                       if (station.isActive) {
                         setSelectedStationId(station.id);

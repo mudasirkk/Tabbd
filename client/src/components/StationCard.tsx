@@ -1,4 +1,4 @@
-import { Clock, Play, Square } from "lucide-react";
+import { Clock, Play, Square, DollarSign } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,13 @@ interface StationCardProps {
   name: string;
   type: StationType;
   isActive: boolean;
+  isPaused?: boolean;
   timeElapsed?: number;
   currentCharge?: number;
   onStart: () => void;
   onStop: () => void;
+  onResume?: () => void;
+  onCompletePayment?: () => void;
   onClick?: () => void;
 }
 
@@ -35,10 +38,13 @@ export function StationCard({
   name,
   type,
   isActive,
+  isPaused = false,
   timeElapsed = 0,
   currentCharge = 0,
   onStart,
   onStop,
+  onResume,
+  onCompletePayment,
   onClick,
 }: StationCardProps) {
   const formatTime = (seconds: number) => {
@@ -77,10 +83,10 @@ export function StationCard({
             </Badge>
           </div>
           <Badge
-            variant={isActive ? "default" : "secondary"}
+            variant={isActive ? (isPaused ? "outline" : "default") : "secondary"}
             data-testid={`badge-status-${id}`}
           >
-            {isActive ? "Active" : "Available"}
+            {isActive ? (isPaused ? "Paused" : "Active") : "Available"}
           </Badge>
         </div>
 
@@ -95,18 +101,47 @@ export function StationCard({
             <div className="text-2xl font-mono font-semibold text-primary" data-testid={`text-charge-${id}`}>
               {formatCurrency(currentCharge)}
             </div>
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                onStop();
-              }}
-              data-testid={`button-stop-${id}`}
-            >
-              <Square className="w-4 h-4 mr-2" />
-              Stop Session
-            </Button>
+            {isPaused ? (
+              <div className="space-y-2">
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onResume?.();
+                  }}
+                  data-testid={`button-resume-${id}`}
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Resume
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCompletePayment?.();
+                  }}
+                  data-testid={`button-complete-payment-${id}`}
+                >
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Complete Payment
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStop();
+                }}
+                data-testid={`button-stop-${id}`}
+              >
+                <Square className="w-4 h-4 mr-2" />
+                Pause
+              </Button>
+            )}
           </div>
         ) : (
           <Button

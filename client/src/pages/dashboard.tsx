@@ -26,6 +26,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
+interface StoredSessionItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
 interface Station {
   id: string;
   name: string;
@@ -34,7 +41,7 @@ interface Station {
   isPaused?: boolean;
   startTime?: number;
   pausedTime?: number;
-  items: { [itemId: string]: number };
+  items: StoredSessionItem[];
 }
 
 const HOURLY_RATE = 16;
@@ -59,16 +66,16 @@ const initialMenuItems: MenuItem[] = [
 ];
 
 const initialStations: Station[] = [
-  { id: "P1", name: "Left 1", type: "pool", isActive: false, items: {} },
-  { id: "P2", name: "Left 2", type: "pool", isActive: false, items: {} },
-  { id: "P3", name: "Left 3", type: "pool", isActive: false, items: {} },
-  { id: "P4", name: "Right 1", type: "pool", isActive: false, items: {} },
-  { id: "P5", name: "Right 2", type: "pool", isActive: false, items: {} },
-  { id: "P6", name: "Right 3", type: "pool", isActive: false, items: {} },
-  { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: {} },
-  { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: {} },
-  { id: "G3", name: "Gaming Station 3", type: "gaming", isActive: false, items: {} },
-  { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: {} },
+  { id: "P1", name: "Left 1", type: "pool", isActive: false, items: [] },
+  { id: "P2", name: "Left 2", type: "pool", isActive: false, items: [] },
+  { id: "P3", name: "Left 3", type: "pool", isActive: false, items: [] },
+  { id: "P4", name: "Right 1", type: "pool", isActive: false, items: [] },
+  { id: "P5", name: "Right 2", type: "pool", isActive: false, items: [] },
+  { id: "P6", name: "Right 3", type: "pool", isActive: false, items: [] },
+  { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: [] },
+  { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: [] },
+  { id: "G3", name: "Gaming Station 3", type: "gaming", isActive: false, items: [] },
+  { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: [] },
 ];
 
 const STORAGE_KEYS = {
@@ -79,7 +86,12 @@ const STORAGE_KEYS = {
 function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
   try {
     const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultValue;
+    if (!stored) return defaultValue;
+    
+    const parsed = JSON.parse(stored);
+    
+    // No migration here - will be handled after menuItems loads
+    return parsed;
   } catch (error) {
     console.error(`Error loading ${key} from localStorage:`, error);
     return defaultValue;
@@ -91,22 +103,11 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
   
-  const { data: menuItems = initialMenuItems, isLoading: menuLoading, error: menuError } = useQuery<MenuItem[]>({
+  const { data: menuItems, isLoading: menuLoading, error: menuError, refetch } = useQuery<MenuItem[]>({
     queryKey: ["/api/menu-items"],
     retry: 3,
     retryDelay: 1000,
   });
-  
-  useEffect(() => {
-    if (menuError) {
-      console.error("Menu loading error:", menuError);
-      toast({
-        title: "Error Loading Menu",
-        description: "Unable to load menu from database. Using default items.",
-        variant: "destructive",
-      });
-    }
-  }, [menuError, toast]);
   
   const addCustomItemMutation = useMutation({
     mutationFn: async (data: { name: string; price: string; category: string }) => {
@@ -114,13 +115,14 @@ export default function Dashboard() {
     },
     onSuccess: (newItem) => {
       // Optimistically update the cache with the new item
-      queryClient.setQueryData<MenuItem[]>(["/api/menu-items"], (old = initialMenuItems) => [...old, newItem]);
+      queryClient.setQueryData<MenuItem[]>(["/api/menu-items"], (old = []) => [...old, newItem]);
     },
   });
   
   const [stations, setStations] = useState<Station[]>(() => 
     loadFromLocalStorage(STORAGE_KEYS.STATIONS, initialStations)
   );
+  const [migrationDone, setMigrationDone] = useState(false);
 
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [addItemsOpen, setAddItemsOpen] = useState(false);
@@ -144,6 +146,77 @@ export default function Dashboard() {
       console.error('Error saving stations to localStorage:', error);
     }
   }, [stations]);
+  
+  // Migration effect: Convert old items format to new format
+  useEffect(() => {
+    if (migrationDone) return;
+    
+    let needsUpdate = false;
+    let hasPlaceholders = false;
+    
+    const updatedStations = stations.map((station: any) => {
+      if (station.items && !Array.isArray(station.items)) {
+        // Old format: { [itemId]: number } - convert to array
+        needsUpdate = true;
+        const oldItems = station.items as { [itemId: string]: number };
+        const newItems: StoredSessionItem[] = [];
+        
+        Object.entries(oldItems).forEach(([itemId, quantity]) => {
+          if (quantity <= 0) return;
+          
+          const menuItem = menuItems?.find((m) => m.id === itemId);
+          if (menuItem) {
+            const price = typeof menuItem.price === 'number' ? menuItem.price : parseFloat(menuItem.price);
+            newItems.push({ itemId, name: menuItem.name, quantity, price });
+          } else {
+            hasPlaceholders = true;
+            newItems.push({ itemId, name: `Unknown Item (${itemId})`, quantity, price: 0 });
+          }
+        });
+        
+        return { ...station, items: newItems };
+      } else if (Array.isArray(station.items) && menuItems && menuItems.length > 0) {
+        // Already migrated - check for placeholders to update
+        const updatedItems = station.items.map((item: StoredSessionItem) => {
+          if (item.price === 0 && item.name.startsWith('Unknown Item')) {
+            const menuItem = menuItems.find((m) => m.id === item.itemId);
+            if (menuItem) {
+              needsUpdate = true;
+              const price = typeof menuItem.price === 'number' ? menuItem.price : parseFloat(menuItem.price);
+              return { ...item, name: menuItem.name, price };
+            } else {
+              hasPlaceholders = true;
+            }
+          } else if (item.price === 0) {
+            hasPlaceholders = true;
+          }
+          return item;
+        });
+        
+        if (needsUpdate) {
+          return { ...station, items: updatedItems };
+        }
+      }
+      return station;
+    });
+    
+    if (needsUpdate) {
+      setStations(updatedStations);
+      if (!hasPlaceholders) {
+        setMigrationDone(true);
+      }
+    } else {
+      // No updates needed - check if we can mark migration as done
+      const hasLegacyFormat = stations.some((s: any) => s.items && !Array.isArray(s.items));
+      const hasAnyPlaceholders = stations.some((s: Station) => 
+        Array.isArray(s.items) && s.items.some(item => item.price === 0)
+      );
+      
+      if (!hasLegacyFormat && !hasAnyPlaceholders) {
+        setMigrationDone(true);
+      }
+    }
+  }, [menuItems, stations, migrationDone]);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
@@ -157,7 +230,7 @@ export default function Dashboard() {
     setStations((prev) =>
       prev.map((s) =>
         s.id === stationId
-          ? { ...s, isActive: true, startTime, items: {} }
+          ? { ...s, isActive: true, startTime, items: [] }
           : s
       )
     );
@@ -210,7 +283,12 @@ export default function Dashboard() {
 
   const handleAddItems = () => {
     if (selectedStation) {
-      setTempItems({ ...selectedStation.items });
+      // Convert array of items to temporary quantity map
+      const quantities: { [itemId: string]: number } = {};
+      selectedStation.items.forEach((item) => {
+        quantities[item.itemId] = (quantities[item.itemId] || 0) + item.quantity;
+      });
+      setTempItems(quantities);
       setAddItemsOpen(true);
     }
   };
@@ -238,10 +316,56 @@ export default function Dashboard() {
   };
 
   const handleConfirmItems = () => {
-    if (selectedStationId) {
+    if (selectedStationId && menuItems) {
+      const station = stations.find((s) => s.id === selectedStationId);
+      if (!station) return;
+      
+      // Calculate existing quantities
+      const existingQuantities: { [itemId: string]: number } = {};
+      station.items.forEach((item) => {
+        existingQuantities[item.itemId] = (existingQuantities[item.itemId] || 0) + item.quantity;
+      });
+      
+      // Start with existing items
+      const updatedItems: StoredSessionItem[] = [...station.items];
+      
+      // For each item in tempItems, compare with existing and add new entries if quantity increased
+      Object.entries(tempItems).forEach(([itemId, newTotal]) => {
+        const existingTotal = existingQuantities[itemId] || 0;
+        const addedQuantity = newTotal - existingTotal;
+        
+        if (addedQuantity > 0) {
+          // New items added - create new entry with current price
+          const menuItem = menuItems.find((m) => m.id === itemId);
+          if (menuItem) {
+            const price = typeof menuItem.price === 'number' ? menuItem.price : parseFloat(menuItem.price);
+            updatedItems.push({
+              itemId,
+              name: menuItem.name,
+              quantity: addedQuantity,
+              price,
+            });
+          }
+        } else if (addedQuantity < 0) {
+          // Items removed - remove from the end until we've removed enough
+          let toRemove = Math.abs(addedQuantity);
+          for (let i = updatedItems.length - 1; i >= 0 && toRemove > 0; i--) {
+            if (updatedItems[i].itemId === itemId) {
+              if (updatedItems[i].quantity <= toRemove) {
+                toRemove -= updatedItems[i].quantity;
+                updatedItems.splice(i, 1);
+              } else {
+                updatedItems[i].quantity -= toRemove;
+                toRemove = 0;
+              }
+            }
+          }
+        }
+      });
+      
       setStations((prev) =>
         prev.map((s) =>
-          s.id === selectedStationId ? { ...s, items: { ...tempItems } } : s
+          s.id === selectedStationId ? { ...s, items: updatedItems } : s
         )
       );
       setAddItemsOpen(false);
@@ -257,7 +381,7 @@ export default function Dashboard() {
       setStations((prev) =>
         prev.map((s) =>
           s.id === selectedStationId
-            ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: {} }
+            ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
             : s
         )
       );
@@ -284,22 +408,14 @@ export default function Dashboard() {
   };
 
   const getSessionItems = (station: Station): SessionItem[] => {
-    return Object.entries(station.items)
-      .filter(([_, quantity]) => quantity > 0)
-      .map(([itemId, quantity]) => {
-        const menuItem = menuItems.find((m) => m.id === itemId);
-        if (!menuItem) {
-          // Item not found in cache (shouldn't happen with optimistic updates, but guard against it)
-          return null;
-        }
-        return {
-          id: itemId,
-          name: menuItem.name,
-          price: typeof menuItem.price === 'number' ? menuItem.price : parseFloat(menuItem.price),
-          quantity,
-        };
-      })
-      .filter((item): item is SessionItem => item !== null);
+    if (!menuItems) return [];
+    
+    return station.items.map((item) => ({
+      id: item.itemId,
+      name: item.name,
+      price: item.price, // Use stored price snapshot
+      quantity: item.quantity,
+    }));
   };
 
   const activeStationsCount = stations.filter((s) => s.isActive).length;
@@ -342,12 +458,35 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">All Stations</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {stations.map((station) => (
+        {menuLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center space-y-4">
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-muted-foreground">Loading menu items...</p>
+            </div>
+          </div>
+        ) : menuError ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center space-y-4 max-w-md">
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                <UtensilsCrossed className="w-8 h-8 text-destructive" />
+              </div>
+              <h3 className="text-xl font-semibold">Failed to Load Menu</h3>
+              <p className="text-muted-foreground">
+                Unable to load menu items from the database. Please check your connection and try again.
+              </p>
+              <Button onClick={() => refetch()} data-testid="button-retry-menu">
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold">All Stations</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {stations.map((station) => (
                   <StationCard
                     key={station.id}
                     id={station.id}
@@ -423,6 +562,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
       </main>
 
       <StartSessionDialog
@@ -436,7 +576,7 @@ export default function Dashboard() {
         }}
       />
 
-      {selectedStation && (
+      {selectedStation && menuItems && (
         <>
           <AddItemsDialog
             open={addItemsOpen}

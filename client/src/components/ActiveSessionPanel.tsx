@@ -91,16 +91,16 @@ export function ActiveSessionPanel({
             {items.length > 0 ? (
               <ScrollArea className="max-h-48">
                 <div className="space-y-2">
-                  {items.map((item) => (
+                  {items.map((item, index) => (
                     <div
-                      key={item.id}
+                      key={`${item.id}-${index}`}
                       className="flex items-center justify-between p-2 rounded-md hover-elevate"
-                      data-testid={`item-session-${item.id}`}
+                      data-testid={`item-session-${item.id}-${index}`}
                     >
                       <span className="text-sm">
                         {item.quantity}x {item.name}
                       </span>
-                      <span className="text-sm font-mono" data-testid={`text-session-item-total-${item.id}`}>
+                      <span className="text-sm font-mono" data-testid={`text-session-item-total-${item.id}-${index}`}>
                         ${(item.price * item.quantity).toFixed(2)}
                       </span>
                     </div>

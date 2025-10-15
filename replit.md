@@ -50,8 +50,17 @@ Preferred communication style: Simple, everyday language.
   - Sessions stored in browser localStorage (key: 'poolcafe_stations') for single-device use
   - Menu items stored in PostgreSQL database for cross-device persistence
   - TanStack Query for server state management with automatic cache invalidation
-  - Error handling with fallback to default menu items if database fails
+  - **NO fallback to hardcoded menu items** - loading/error states shown instead
+  - Retry logic (3 attempts, 1s delay) for menu item queries
 - Toast notifications for user feedback and error states
+
+**Price Snapshot System (Critical Feature)**
+- Session items store price snapshots at the time they were added
+- Data structure: `StoredSessionItem[] = [{ itemId, name, quantity, price }]`
+- Same item can appear multiple times with different prices in one session
+- Example: Add 2 @ $9.99, update price to $12.50, add 1 more → subtotal: $32.48 (2×$9.99 + 1×$12.50)
+- This ensures accurate billing even when menu prices change during active sessions
+- **Migration System**: Automatically converts legacy session data from old format (`{[itemId]: quantity}`) to new format, preserving quantities and updating prices when menu loads
 
 **Station Configuration**
 - **Pool Tables** (6 total): Left 1, Left 2, Left 3, Right 1, Right 2, Right 3 (IDs: P1-P6)

@@ -1,4 +1,5 @@
-import { Clock, ShoppingBag, DollarSign } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Clock, ShoppingBag, DollarSign, Users, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface CheckoutItem {
   id: string;
@@ -21,6 +24,7 @@ interface CheckoutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stationName: string;
+  stationType?: string;
   timeElapsed: number;
   timeCharge: number;
   items: CheckoutItem[];
@@ -31,11 +35,24 @@ export function CheckoutDialog({
   open,
   onOpenChange,
   stationName,
+  stationType,
   timeElapsed,
   timeCharge,
   items,
   onConfirmCheckout,
 }: CheckoutDialogProps) {
+  const [pricingTier, setPricingTier] = useState<"group" | "solo">("group");
+  
+  // Reset to group when dialog opens
+  useEffect(() => {
+    if (open) {
+      setPricingTier("group");
+    }
+  }, [open]);
+  
+  const isPoolOrFoosball = stationType === "pool" || stationType === "foosball";
+  const hourlyRate = isPoolOrFoosball && pricingTier === "solo" ? 10 : 16;
+  const recalculatedTimeCharge = (timeElapsed / 3600) * hourlyRate;
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -45,7 +62,7 @@ export function CheckoutDialog({
   };
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const grandTotal = timeCharge + itemsTotal;
+  const grandTotal = recalculatedTimeCharge + itemsTotal;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,18 +78,68 @@ export function CheckoutDialog({
 
         <div className="space-y-6">
           <div className="space-y-4">
+            {isPoolOrFoosball && (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Pricing Option</Label>
+                <RadioGroup
+                  value={pricingTier}
+                  onValueChange={(value) => setPricingTier(value as "group" | "solo")}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <div>
+                    <RadioGroupItem
+                      value="group"
+                      id="group"
+                      className="peer sr-only"
+                      data-testid="radio-pricing-group"
+                    />
+                    <Label
+                      htmlFor="group"
+                      className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-muted/50 p-4 hover-elevate cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                      data-testid="label-pricing-group"
+                    >
+                      <Users className="w-5 h-5" />
+                      <div className="text-center">
+                        <p className="font-semibold">Group</p>
+                        <p className="text-sm text-muted-foreground">$16.00/HR</p>
+                      </div>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem
+                      value="solo"
+                      id="solo"
+                      className="peer sr-only"
+                      data-testid="radio-pricing-solo"
+                    />
+                    <Label
+                      htmlFor="solo"
+                      className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-muted/50 p-4 hover-elevate cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                      data-testid="label-pricing-solo"
+                    >
+                      <User className="w-5 h-5" />
+                      <div className="text-center">
+                        <p className="font-semibold">Solo</p>
+                        <p className="text-sm text-muted-foreground">$10.00/HR</p>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
+            
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-3">
                 <Clock className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium">Time Charge</p>
                   <p className="text-xs text-muted-foreground" data-testid="text-time-elapsed">
-                    {formatTime(timeElapsed)} @ $16/hour
+                    {formatTime(timeElapsed)} @ ${hourlyRate}/hour
                   </p>
                 </div>
               </div>
               <span className="text-lg font-mono font-semibold" data-testid="text-time-charge">
-                ${timeCharge.toFixed(2)}
+                ${recalculatedTimeCharge.toFixed(2)}
               </span>
             </div>
 

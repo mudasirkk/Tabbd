@@ -261,6 +261,24 @@ export default function Dashboard() {
       updatedStations = [...updatedStations, ...missingStations];
     }
 
+    // Ensure stations are in the correct order based on initialStations
+    const correctOrder = initialStations.map(s => s.id);
+    const currentOrder = updatedStations.map(s => s.id).join(',');
+    const expectedOrder = updatedStations.slice().sort((a, b) => {
+      const aIndex = correctOrder.indexOf(a.id);
+      const bIndex = correctOrder.indexOf(b.id);
+      return aIndex - bIndex;
+    }).map(s => s.id).join(',');
+    
+    if (currentOrder !== expectedOrder) {
+      needsUpdate = true;
+      updatedStations = updatedStations.slice().sort((a, b) => {
+        const aIndex = correctOrder.indexOf(a.id);
+        const bIndex = correctOrder.indexOf(b.id);
+        return aIndex - bIndex;
+      });
+    }
+
     if (needsUpdate) {
       setStations(updatedStations);
       setNamesMigrated(true);
@@ -656,6 +674,7 @@ export default function Dashboard() {
             open={checkoutOpen}
             onOpenChange={setCheckoutOpen}
             stationName={selectedStation.name}
+            stationType={selectedStation.type}
             timeElapsed={getTimeElapsed(selectedStation)}
             timeCharge={getTimeCharge(selectedStation)}
             items={getSessionItems(selectedStation)}

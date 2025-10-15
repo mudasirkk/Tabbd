@@ -4,6 +4,7 @@ import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
 import { CheckoutDialog } from "@/components/CheckoutDialog";
+import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -95,6 +96,8 @@ export default function Dashboard() {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [addItemsOpen, setAddItemsOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [startSessionOpen, setStartSessionOpen] = useState(false);
+  const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
 
   useEffect(() => {
@@ -123,11 +126,17 @@ export default function Dashboard() {
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
-  const handleStartSession = (stationId: string) => {
+  const handleOpenStartDialog = (stationId: string) => {
+    setStationToStart(stationId);
+    setStartSessionOpen(true);
+  };
+
+  const handleStartSession = (stationId: string, customStartTime?: number) => {
+    const startTime = customStartTime || Date.now();
     setStations((prev) =>
       prev.map((s) =>
         s.id === stationId
-          ? { ...s, isActive: true, startTime: Date.now(), items: {} }
+          ? { ...s, isActive: true, startTime, items: {} }
           : s
       )
     );
@@ -308,7 +317,7 @@ export default function Dashboard() {
                     isPaused={station.isPaused}
                     timeElapsed={getTimeElapsed(station)}
                     currentCharge={getTimeCharge(station)}
-                    onStart={() => handleStartSession(station.id)}
+                    onStart={() => handleOpenStartDialog(station.id)}
                     onStop={() => handleStopSession(station.id)}
                     onResume={() => handleResumeSession(station.id)}
                     onCompletePayment={() => {
@@ -375,6 +384,17 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+
+      <StartSessionDialog
+        open={startSessionOpen}
+        onOpenChange={setStartSessionOpen}
+        stationName={stationToStart ? stations.find((s) => s.id === stationToStart)?.name || "" : ""}
+        onConfirmStart={(customStartTime) => {
+          if (stationToStart) {
+            handleStartSession(stationToStart, customStartTime);
+          }
+        }}
+      />
 
       {selectedStation && (
         <>

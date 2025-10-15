@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Clock, Menu } from "lucide-react";
+import { Clock, Menu, UtensilsCrossed } from "lucide-react";
+import { useLocation } from "wouter";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
@@ -84,6 +85,7 @@ function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
 }
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [menuItems, setMenuItems] = useState<MenuItem[]>(() => 
@@ -284,6 +286,14 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
             </div>
             <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/menu")}
+                data-testid="button-menu-management"
+              >
+                <UtensilsCrossed className="w-4 h-4 mr-2" />
+                Menu
+              </Button>
               <div className="text-right hidden sm:block">
                 <p className="text-sm text-muted-foreground">Active Stations</p>
                 <p className="text-xl font-mono font-bold" data-testid="text-active-count">

@@ -85,6 +85,9 @@ export class DatabaseStorage implements IStorage {
     }
 
     const defaultMenuItems: InsertMenuItem[] = [
+      { name: "TABLE (POOL/FOOSBALL)", price: "16.00", category: "Gaming" },
+      { name: "SOLO", price: "10.00", category: "Gaming" },
+      { name: "GAMING", price: "16.00", category: "Gaming" },
       { name: "Vanilla Latte", price: "4.99", category: "Lattes" },
       { name: "Caramel Latte", price: "4.99", category: "Lattes" },
       { name: "Brown Sugar Latte", price: "4.99", category: "Lattes" },

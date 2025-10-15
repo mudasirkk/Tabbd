@@ -8,6 +8,7 @@ Rack Em Up is a real-time pool cafe management system designed for tracking cust
 
 - **Multi-session Management**: Support for multiple concurrent active sessions across different stations
 - **Session Switcher**: Dropdown selector in detail panel for quick switching between active sessions (appears when 2+ sessions are active)
+- **Custom Start Time**: Ability to backdate session start time when staff forgets to start timer immediately (e.g., customer arrived at 7:00pm but timer started at 7:30pm)
 - **Pause/Resume Sessions**: Ability to pause active sessions, freezing the timer and charge, with options to resume or complete payment
 - **Persistent Sessions**: LocalStorage-based persistence ensures sessions survive page refreshes and browser switches, including paused state
 - **Real-time Tracking**: Live timers and automatic charge calculation for all active stations
@@ -50,6 +51,12 @@ Preferred communication style: Simple, everyday language.
   - Automatic save on state changes, automatic load on component mount
   - Error handling for corrupted localStorage data with fallback to defaults
 - Toast notifications for user feedback
+
+**Station Configuration**
+- **Pool Tables** (6 total): Left 1, Left 2, Left 3, Right 1, Right 2, Right 3 (IDs: P1-P6)
+- **Gaming Stations** (3 total): Gaming Station 1, Gaming Station 2, Gaming Station 3 (IDs: G1-G3)
+- **Foosball Tables** (1 total): Foosball Table (ID: F1)
+- All stations charge $16/hour for time-based billing
 
 ### Backend Architecture
 

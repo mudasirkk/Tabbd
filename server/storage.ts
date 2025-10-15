@@ -15,12 +15,13 @@ export interface IStorage {
   createMenuItem(item: InsertMenuItem): Promise<MenuItem>;
   updateMenuItem(id: string, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined>;
   deleteMenuItem(id: string): Promise<boolean>;
+  seedMenuItems(): Promise<void>;
 }
 
 // Reference: blueprint:javascript_database
 import { users, menuItems } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -74,6 +75,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(menuItems.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  async seedMenuItems(): Promise<void> {
+    const [result] = await db.select({ count: count() }).from(menuItems);
+    
+    if (result.count > 0) {
+      return;
+    }
+
+    const defaultMenuItems: InsertMenuItem[] = [
+      { name: "Vanilla Latte", price: "4.99", category: "Lattes" },
+      { name: "Caramel Latte", price: "4.99", category: "Lattes" },
+      { name: "Brown Sugar Latte", price: "4.99", category: "Lattes" },
+      { name: "Biscoff Latte", price: "4.99", category: "Lattes" },
+      { name: "Pistachio Latte", price: "4.99", category: "Lattes" },
+      { name: "Adeni Tea", price: "4.49", category: "Tea" },
+      { name: "Berry Hibiscus Refresher", price: "4.49", category: "Refreshers" },
+      { name: "Mango Dragon Fruit Refresher", price: "4.49", category: "Refreshers" },
+      { name: "Strawberry Acai Refresher", price: "4.49", category: "Refreshers" },
+      { name: "Pomegranate Refresher", price: "4.49", category: "Refreshers" },
+      { name: "Blue Citrus Refresher", price: "4.49", category: "Refreshers" },
+      { name: "Slushies", price: "2.99", category: "Slushies" },
+      { name: "Cookies", price: "1.99", category: "Dessert" },
+      { name: "Milk Cake", price: "5.99", category: "Dessert" },
+      { name: "Banana Pudding", price: "4.49", category: "Dessert" },
+    ];
+
+    for (const item of defaultMenuItems) {
+      await this.createMenuItem(item);
+    }
   }
 }
 

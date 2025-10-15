@@ -67,5 +67,12 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Seed menu items in the background without blocking server startup
+    import("./storage").then(({ storage }) => {
+      storage.seedMenuItems().catch((error) => {
+        log(`Failed to seed menu items: ${error.message}`);
+      });
+    });
   });
 })();

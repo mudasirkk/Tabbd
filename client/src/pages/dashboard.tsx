@@ -125,6 +125,7 @@ export default function Dashboard() {
     loadFromLocalStorage(STORAGE_KEYS.STATIONS, initialStations)
   );
   const [migrationDone, setMigrationDone] = useState(false);
+  const [namesMigrated, setNamesMigrated] = useState(false);
 
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [addItemsOpen, setAddItemsOpen] = useState(false);
@@ -219,6 +220,41 @@ export default function Dashboard() {
       }
     }
   }, [menuItems, stations, migrationDone]);
+
+  // Station name migration effect
+  useEffect(() => {
+    if (namesMigrated) return;
+
+    const correctNames: { [id: string]: string } = {
+      P1: "Left 1",
+      P2: "Left 2",
+      P3: "Left 3",
+      P4: "Right 1",
+      P5: "Right 2",
+      P6: "Right 3",
+      G1: "Gaming Station 1",
+      G2: "Gaming Station 2",
+      G3: "Gaming Station 3",
+      F1: "Foosball Table",
+    };
+
+    let needsNameUpdate = false;
+    const updatedStations = stations.map((station) => {
+      const correctName = correctNames[station.id];
+      if (correctName && station.name !== correctName) {
+        needsNameUpdate = true;
+        return { ...station, name: correctName };
+      }
+      return station;
+    });
+
+    if (needsNameUpdate) {
+      setStations(updatedStations);
+      setNamesMigrated(true);
+    } else {
+      setNamesMigrated(true);
+    }
+  }, [stations, namesMigrated]);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 

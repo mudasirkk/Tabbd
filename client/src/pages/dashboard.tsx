@@ -65,6 +65,8 @@ const initialMenuItems: MenuItem[] = [
   { id: "15", name: "Banana Pudding", price: 4.49, category: "Dessert" },
 ];
 
+// IMPORTANT: When updating station definitions, also update the correctNames map
+// in the station migration effect below (search for "correctNames")
 const initialStations: Station[] = [
   { id: "P1", name: "Left 1", type: "pool", isActive: false, items: [] },
   { id: "P2", name: "Left 2", type: "pool", isActive: false, items: [] },
@@ -221,7 +223,7 @@ export default function Dashboard() {
     }
   }, [menuItems, stations, migrationDone]);
 
-  // Station name migration effect
+  // Station name and missing stations migration effect
   useEffect(() => {
     if (namesMigrated) return;
 
@@ -238,17 +240,28 @@ export default function Dashboard() {
       F1: "Foosball Table",
     };
 
-    let needsNameUpdate = false;
-    const updatedStations = stations.map((station) => {
+    let needsUpdate = false;
+    
+    // First, update names of existing stations
+    let updatedStations = stations.map((station) => {
       const correctName = correctNames[station.id];
       if (correctName && station.name !== correctName) {
-        needsNameUpdate = true;
+        needsUpdate = true;
         return { ...station, name: correctName };
       }
       return station;
     });
 
-    if (needsNameUpdate) {
+    // Then, check for missing stations and add them
+    const existingIds = new Set(updatedStations.map(s => s.id));
+    const missingStations = initialStations.filter(s => !existingIds.has(s.id));
+    
+    if (missingStations.length > 0) {
+      needsUpdate = true;
+      updatedStations = [...updatedStations, ...missingStations];
+    }
+
+    if (needsUpdate) {
       setStations(updatedStations);
       setNamesMigrated(true);
     } else {

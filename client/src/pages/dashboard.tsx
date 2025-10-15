@@ -97,9 +97,10 @@ export default function Dashboard() {
   
   useEffect(() => {
     if (menuError) {
+      console.error("Menu loading error:", menuError);
       toast({
         title: "Error Loading Menu",
-        description: "Failed to load menu items. Using default items.",
+        description: `Failed to load menu items: ${menuError.message || 'Unknown error'}`,
         variant: "destructive",
       });
     }

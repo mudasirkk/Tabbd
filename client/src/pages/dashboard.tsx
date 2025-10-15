@@ -55,12 +55,12 @@ const initialMenuItems: MenuItem[] = [
 ];
 
 const initialStations: Station[] = [
-  { id: "P1", name: "Pool Table 1", type: "pool", isActive: false, items: {} },
-  { id: "P2", name: "Pool Table 2", type: "pool", isActive: false, items: {} },
-  { id: "P3", name: "Pool Table 3", type: "pool", isActive: false, items: {} },
-  { id: "P4", name: "Pool Table 4", type: "pool", isActive: false, items: {} },
-  { id: "P5", name: "Pool Table 5", type: "pool", isActive: false, items: {} },
-  { id: "P6", name: "Pool Table 6", type: "pool", isActive: false, items: {} },
+  { id: "P1", name: "Left 1", type: "pool", isActive: false, items: {} },
+  { id: "P2", name: "Left 2", type: "pool", isActive: false, items: {} },
+  { id: "P3", name: "Left 3", type: "pool", isActive: false, items: {} },
+  { id: "P4", name: "Right 1", type: "pool", isActive: false, items: {} },
+  { id: "P5", name: "Right 2", type: "pool", isActive: false, items: {} },
+  { id: "P6", name: "Right 3", type: "pool", isActive: false, items: {} },
   { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: {} },
   { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: {} },
   { id: "G3", name: "Gaming Station 3", type: "gaming", isActive: false, items: {} },

@@ -66,7 +66,11 @@ Preferred communication style: Simple, everyday language.
 - **Pool Tables** (6 total): Left 1, Left 2, Left 3, Right 1, Right 2, Right 3 (IDs: P1-P6)
 - **Gaming Stations** (3 total): Gaming Station 1, Gaming Station 2, Gaming Station 3 (IDs: G1-G3)
 - **Foosball Tables** (1 total): Foosball Table (ID: F1)
-- All stations charge $16/hour for time-based billing
+- **Station Display Order**: Enforced via migration logic to always follow the canonical order from initialStations array (P1-P6, G1-G3, F1)
+- **Pricing Tiers**:
+  - Pool & Foosball tables: Dual pricing options in checkout (Group: $16/hr, Solo: $10/hr)
+  - Gaming stations: Fixed $16/hr rate
+  - Default selection: Group pricing for applicable stations
 
 ### Backend Architecture
 

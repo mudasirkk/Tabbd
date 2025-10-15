@@ -51,6 +51,8 @@ export default function MenuManagement() {
     queryKey: ["/api/menu-items"],
     retry: 3,
     retryDelay: 1000,
+    staleTime: 0, // Always fetch fresh data
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
   
   useEffect(() => {

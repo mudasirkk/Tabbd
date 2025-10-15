@@ -445,6 +445,21 @@ export default function Dashboard() {
     }
   };
 
+  const handleOpenCheckout = (stationId: string) => {
+    const station = stations.find((s) => s.id === stationId);
+    if (station?.isActive && !station.isPaused) {
+      setStations((prev) =>
+        prev.map((s) =>
+          s.id === stationId
+            ? { ...s, isPaused: true, pausedTime: Date.now() }
+            : s
+        )
+      );
+    }
+    setSelectedStationId(stationId);
+    setCheckoutOpen(true);
+  };
+
   const handleConfirmCheckout = () => {
     if (selectedStationId) {
       setStations((prev) =>
@@ -568,10 +583,7 @@ export default function Dashboard() {
                     onStart={() => handleOpenStartDialog(station.id)}
                     onStop={() => handleStopSession(station.id)}
                     onResume={() => handleResumeSession(station.id)}
-                    onCompletePayment={() => {
-                      setSelectedStationId(station.id);
-                      setCheckoutOpen(true);
-                    }}
+                    onCompletePayment={() => handleOpenCheckout(station.id)}
                     onClick={() => {
                       if (station.isActive) {
                         setSelectedStationId(station.id);
@@ -616,7 +628,7 @@ export default function Dashboard() {
                   timeCharge={getTimeCharge(selectedStation)}
                   items={getSessionItems(selectedStation)}
                   onAddItems={handleAddItems}
-                  onCheckout={() => setCheckoutOpen(true)}
+                  onCheckout={() => handleOpenCheckout(selectedStation.id)}
                 />
               </div>
             ) : (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -21,15 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
-interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-}
-
-const STORAGE_KEY = 'poolcafe_menu';
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { MenuItem } from "@shared/schema";
 
 const CATEGORIES = [
   "Lattes",
@@ -42,28 +36,9 @@ const CATEGORIES = [
   "Custom",
 ];
 
-function loadMenuItems(): MenuItem[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Error loading menu items:', error);
-    return [];
-  }
-}
-
-function saveMenuItems(items: MenuItem[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  } catch (error) {
-    console.error('Error saving menu items:', error);
-  }
-}
-
 export default function MenuManagement() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => loadMenuItems());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [formData, setFormData] = useState({
@@ -72,10 +47,81 @@ export default function MenuManagement() {
     category: "Custom",
   });
 
-  const handleSaveItems = (items: MenuItem[]) => {
-    setMenuItems(items);
-    saveMenuItems(items);
-  };
+  const { data: menuItems = [], isLoading } = useQuery<MenuItem[]>({
+    queryKey: ["/api/menu-items"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { name: string; price: string; category: string }) => {
+      return await apiRequest("POST", "/api/menu-items", {
+        name: data.name,
+        price: data.price,
+        category: data.category,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/menu-items"] });
+      toast({
+        title: "Item Added",
+        description: `${formData.name} has been added to the menu`,
+      });
+      setDialogOpen(false);
+      setFormData({ name: "", price: "", category: "Custom" });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add menu item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { name: string; price: string; category: string } }) => {
+      return await apiRequest("PATCH", `/api/menu-items/${id}`, {
+        name: data.name,
+        price: data.price,
+        category: data.category,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/menu-items"] });
+      toast({
+        title: "Item Updated",
+        description: `${formData.name} has been updated`,
+      });
+      setDialogOpen(false);
+      setFormData({ name: "", price: "", category: "Custom" });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update menu item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/menu-items/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/menu-items"] });
+      toast({
+        title: "Item Deleted",
+        description: "Menu item has been successfully deleted",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete menu item",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleOpenAddDialog = () => {
     setEditingItem(null);
@@ -87,7 +133,7 @@ export default function MenuManagement() {
     setEditingItem(item);
     setFormData({
       name: item.name,
-      price: item.price.toString(),
+      price: typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2),
       category: item.category,
     });
     setDialogOpen(true);
@@ -105,41 +151,17 @@ export default function MenuManagement() {
     }
 
     if (editingItem) {
-      const updatedItems = menuItems.map((item) =>
-        item.id === editingItem.id
-          ? { ...item, name: formData.name.trim(), price, category: formData.category }
-          : item
-      );
-      handleSaveItems(updatedItems);
-      toast({
-        title: "Item Updated",
-        description: `${formData.name} has been updated`,
+      updateMutation.mutate({
+        id: editingItem.id,
+        data: formData,
       });
     } else {
-      const newItem: MenuItem = {
-        id: `menu-${Date.now()}`,
-        name: formData.name.trim(),
-        price,
-        category: formData.category,
-      };
-      handleSaveItems([...menuItems, newItem]);
-      toast({
-        title: "Item Added",
-        description: `${formData.name} has been added to the menu`,
-      });
+      createMutation.mutate(formData);
     }
-
-    setDialogOpen(false);
-    setFormData({ name: "", price: "", category: "Custom" });
   };
 
   const handleDeleteItem = (item: MenuItem) => {
-    const updatedItems = menuItems.filter((i) => i.id !== item.id);
-    handleSaveItems(updatedItems);
-    toast({
-      title: "Item Deleted",
-      description: `${item.name} has been removed from the menu`,
-    });
+    deleteMutation.mutate(item.id);
   };
 
   const groupedItems = menuItems.reduce((acc, item) => {
@@ -149,6 +171,14 @@ export default function MenuManagement() {
     acc[item.category].push(item);
     return acc;
   }, {} as Record<string, MenuItem[]>);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading menu items...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -224,7 +254,7 @@ export default function MenuManagement() {
                           {item.name}
                         </p>
                         <p className="text-lg font-mono text-green-600 dark:text-green-400" data-testid={`text-item-price-${item.id}`}>
-                          ${item.price.toFixed(2)}
+                          ${parseFloat(item.price).toFixed(2)}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -323,7 +353,11 @@ export default function MenuManagement() {
             >
               Cancel
             </Button>
-            <Button onClick={handleSaveMenuItem} data-testid="button-save">
+            <Button
+              onClick={handleSaveMenuItem}
+              disabled={createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save"
+            >
               {editingItem ? "Update" : "Add"} Item
             </Button>
           </DialogFooter>

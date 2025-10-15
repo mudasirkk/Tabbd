@@ -154,7 +154,7 @@ export function AddItemsDialog({
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-mono font-semibold text-primary text-sm" data-testid={`text-item-price-${item.id}`}>
-                            ${item.price.toFixed(2)}
+                            ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
                           </span>
                           {selectedItems[item.id] > 0 && (
                             <div className="flex items-center gap-1">

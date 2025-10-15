@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMenuItemSchema } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Menu Items API Routes
@@ -33,14 +34,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/menu-items/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const item = await storage.updateMenuItem(id, req.body);
+      const validatedData = insertMenuItemSchema.parse(req.body);
+      const item = await storage.updateMenuItem(id, validatedData);
       if (!item) {
         return res.status(404).json({ error: "Menu item not found" });
       }
       res.json(item);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
       console.error("Error updating menu item:", error);
-      res.status(400).json({ error: "Failed to update menu item" });
+      res.status(500).json({ error: "Failed to update menu item" });
     }
   });
 

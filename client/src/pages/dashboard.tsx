@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Clock, Menu, UtensilsCrossed } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
@@ -23,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 interface Station {
   id: string;
@@ -88,9 +90,31 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => 
-    loadFromLocalStorage(STORAGE_KEYS.MENU, initialMenuItems)
-  );
+  
+  const { data: menuItems = initialMenuItems, isLoading: menuLoading, error: menuError } = useQuery<MenuItem[]>({
+    queryKey: ["/api/menu-items"],
+  });
+  
+  useEffect(() => {
+    if (menuError) {
+      toast({
+        title: "Error Loading Menu",
+        description: "Failed to load menu items. Using default items.",
+        variant: "destructive",
+      });
+    }
+  }, [menuError, toast]);
+  
+  const addCustomItemMutation = useMutation({
+    mutationFn: async (data: { name: string; price: string; category: string }) => {
+      return await apiRequest("POST", "/api/menu-items", data);
+    },
+    onSuccess: (newItem) => {
+      // Optimistically update the cache with the new item
+      queryClient.setQueryData<MenuItem[]>(["/api/menu-items"], (old = initialMenuItems) => [...old, newItem]);
+    },
+  });
+  
   const [stations, setStations] = useState<Station[]>(() => 
     loadFromLocalStorage(STORAGE_KEYS.STATIONS, initialStations)
   );
@@ -117,14 +141,6 @@ export default function Dashboard() {
       console.error('Error saving stations to localStorage:', error);
     }
   }, [stations]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems));
-    } catch (error) {
-      console.error('Error saving menu items to localStorage:', error);
-    }
-  }, [menuItems]);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
@@ -196,20 +212,26 @@ export default function Dashboard() {
     }
   };
 
-  const handleAddCustomItem = (name: string, price: number) => {
-    const customId = `custom-${Date.now()}`;
-    const newItem: MenuItem = {
-      id: customId,
-      name,
-      price,
-      category: "Custom",
-    };
-    setMenuItems((prev) => [...prev, newItem]);
-    setTempItems((prev) => ({ ...prev, [customId]: 1 }));
-    toast({
-      title: "Custom Item Added",
-      description: `${name} ($${price.toFixed(2)}) added to cart`,
-    });
+  const handleAddCustomItem = async (name: string, price: number) => {
+    try {
+      const result = await addCustomItemMutation.mutateAsync({
+        name,
+        price: price.toFixed(2),
+        category: "Custom",
+      });
+      
+      setTempItems((prev) => ({ ...prev, [result.id]: 1 }));
+      toast({
+        title: "Custom Item Added",
+        description: `${name} ($${price.toFixed(2)}) added to cart`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add custom item",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleConfirmItems = () => {
@@ -262,14 +284,19 @@ export default function Dashboard() {
     return Object.entries(station.items)
       .filter(([_, quantity]) => quantity > 0)
       .map(([itemId, quantity]) => {
-        const menuItem = menuItems.find((m) => m.id === itemId)!;
+        const menuItem = menuItems.find((m) => m.id === itemId);
+        if (!menuItem) {
+          // Item not found in cache (shouldn't happen with optimistic updates, but guard against it)
+          return null;
+        }
         return {
           id: itemId,
           name: menuItem.name,
-          price: menuItem.price,
+          price: typeof menuItem.price === 'number' ? menuItem.price : parseFloat(menuItem.price),
           quantity,
         };
-      });
+      })
+      .filter((item): item is SessionItem => item !== null);
   };
 
   const activeStationsCount = stations.filter((s) => s.isActive).length;

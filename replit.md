@@ -46,12 +46,12 @@ Preferred communication style: Simple, everyday language.
 - Local component state for UI interactions (dialogs, forms)
 - Real-time timer logic handled client-side with useEffect hooks
 - Session data maintained in component state (stations array with active/inactive status)
-- **Browser localStorage** for session persistence across page refreshes and browser switches
-  - Stations state persisted with key: 'poolcafe_stations'
-  - Menu items (including custom items) persisted with key: 'poolcafe_menu'
-  - Automatic save on state changes, automatic load on component mount
-  - Error handling for corrupted localStorage data with fallback to defaults
-- Toast notifications for user feedback
+- **Hybrid persistence strategy**:
+  - Sessions stored in browser localStorage (key: 'poolcafe_stations') for single-device use
+  - Menu items stored in PostgreSQL database for cross-device persistence
+  - TanStack Query for server state management with automatic cache invalidation
+  - Error handling with fallback to default menu items if database fails
+- Toast notifications for user feedback and error states
 
 **Station Configuration**
 - **Pool Tables** (6 total): Left 1, Left 2, Left 3, Right 1, Right 2, Right 3 (IDs: P1-P6)
@@ -73,26 +73,31 @@ Preferred communication style: Simple, everyday language.
 - esbuild for server-side bundling in production
 
 **Data Layer Design**
-- In-memory storage implementation (MemStorage class) with interface-based pattern
-- Designed for easy migration to persistent database (PostgreSQL via Drizzle ORM)
-- CRUD interface pattern (IStorage) for abstraction between storage implementations
+- PostgreSQL database with Drizzle ORM for type-safe queries
+- RESTful API endpoints for menu item CRUD operations
+- IStorage interface pattern for abstraction between storage implementations
+- Zod validation on all API inputs with proper error handling
 
 ### Database Schema
 
 **Current Implementation**
-- Simple users table with UUID primary keys
-- Username/password authentication structure
+- **Users table**: UUID primary keys, username/password authentication
+- **Menu items table** (implemented): 
+  - id: varchar (UUID primary key)
+  - name: text (not null)
+  - price: numeric(10,2) (not null, stored as string in JavaScript)
+  - category: text (not null)
 - Schema defined with Drizzle ORM and Zod validation
+- API routes with validation: GET, POST, PATCH, DELETE for menu items
 
-**Design for Extension**
-- PostgreSQL configured via Drizzle Kit (migrations ready)
-- Neon serverless Postgres driver included for cloud deployment
-- Schema extensible for stations, sessions, menu items, and transactions
+**Price Handling**
+- Database stores prices as numeric(10,2) which returns as strings in JavaScript
+- Frontend converts to numbers for calculations using defensive parsing
+- Display uses parseFloat() with toFixed(2) for consistent formatting
 
-**Expected Data Models** (not yet implemented)
+**Future Extensions**
 - Stations: ID, name, type (pool/gaming/foosball), hourly rate
 - Sessions: ID, station ID, start time, end time, customer name
-- Menu items: ID, name, price, category
 - Session items: Session ID, menu item ID, quantity
 - Transactions: Session ID, total amount, payment method, timestamp
 

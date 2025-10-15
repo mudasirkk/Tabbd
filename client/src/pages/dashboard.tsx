@@ -93,6 +93,8 @@ export default function Dashboard() {
   
   const { data: menuItems = initialMenuItems, isLoading: menuLoading, error: menuError } = useQuery<MenuItem[]>({
     queryKey: ["/api/menu-items"],
+    retry: 3,
+    retryDelay: 1000,
   });
   
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function Dashboard() {
       console.error("Menu loading error:", menuError);
       toast({
         title: "Error Loading Menu",
-        description: `Failed to load menu items: ${menuError.message || 'Unknown error'}`,
+        description: "Unable to load menu from database. Using default items.",
         variant: "destructive",
       });
     }

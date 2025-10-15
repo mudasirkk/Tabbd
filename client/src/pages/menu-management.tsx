@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -47,9 +47,21 @@ export default function MenuManagement() {
     category: "Custom",
   });
 
-  const { data: menuItems = [], isLoading } = useQuery<MenuItem[]>({
+  const { data: menuItems = [], isLoading, error } = useQuery<MenuItem[]>({
     queryKey: ["/api/menu-items"],
+    retry: 3,
+    retryDelay: 1000,
   });
+  
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Error Loading Menu",
+        description: "Unable to load menu items. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; price: string; category: string }) => {
@@ -131,9 +143,10 @@ export default function MenuManagement() {
 
   const handleOpenEditDialog = (item: MenuItem) => {
     setEditingItem(item);
+    const priceValue = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
     setFormData({
       name: item.name,
-      price: typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2),
+      price: priceValue.toFixed(2),
       category: item.category,
     });
     setDialogOpen(true);

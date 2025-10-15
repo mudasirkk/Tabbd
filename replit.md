@@ -10,6 +10,7 @@ Rack Em Up is a real-time pool cafe management system designed for tracking cust
 - **Session Switcher**: Dropdown selector in detail panel for quick switching between active sessions (appears when 2+ sessions are active)
 - **Custom Start Time**: Ability to backdate session start time when staff forgets to start timer immediately (e.g., customer arrived at 7:00pm but timer started at 7:30pm)
 - **Pause/Resume Sessions**: Ability to pause active sessions, freezing the timer and charge, with options to resume or complete payment
+- **Menu Management**: Dedicated page for adding, editing, and deleting menu items organized by category (Food, Snacks, Dessert, etc.)
 - **Persistent Sessions**: LocalStorage-based persistence ensures sessions survive page refreshes and browser switches, including paused state
 - **Real-time Tracking**: Live timers and automatic charge calculation for all active stations
 - **Mobile-optimized**: Touch-friendly interface designed for iPhone Safari and Chrome

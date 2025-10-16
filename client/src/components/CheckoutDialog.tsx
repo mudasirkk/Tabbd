@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, ShoppingBag, DollarSign, Users, User, CreditCard, Wallet } from "lucide-react";
+import { Clock, ShoppingBag, DollarSign, Users, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -42,13 +42,11 @@ export function CheckoutDialog({
   onConfirmCheckout,
 }: CheckoutDialogProps) {
   const [pricingTier, setPricingTier] = useState<"group" | "solo">("group");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
   
-  // Reset to defaults when dialog opens
+  // Reset to group when dialog opens
   useEffect(() => {
     if (open) {
       setPricingTier("group");
-      setPaymentMethod("cash");
     }
   }, [open]);
   
@@ -64,14 +62,7 @@ export function CheckoutDialog({
   };
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  // Round subtotal to avoid precision issues in displayed calculations
-  const subtotal = Math.round((recalculatedTimeCharge + itemsTotal) * 100) / 100;
-  const taxRate = 0.06; // 6% tax
-  const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-  const totalAfterTax = subtotal + taxAmount;
-  const cardFeeRate = 0.025; // 2.5% card processing fee
-  const cardFee = paymentMethod === "card" ? Math.round(totalAfterTax * cardFeeRate * 100) / 100 : 0;
-  const grandTotal = totalAfterTax + cardFee;
+  const grandTotal = recalculatedTimeCharge + itemsTotal;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -183,81 +174,6 @@ export function CheckoutDialog({
                     ${itemsTotal.toFixed(2)}
                   </span>
                 </div>
-              </div>
-            )}
-          </div>
-
-          <Separator className="my-4" />
-
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Payment Method</Label>
-            <RadioGroup
-              value={paymentMethod}
-              onValueChange={(value) => setPaymentMethod(value as "cash" | "card")}
-              className="grid grid-cols-2 gap-3"
-            >
-              <div>
-                <RadioGroupItem
-                  value="cash"
-                  id="cash"
-                  className="peer sr-only"
-                  data-testid="radio-payment-cash"
-                />
-                <Label
-                  htmlFor="cash"
-                  className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-muted/50 p-4 hover-elevate cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
-                  data-testid="label-payment-cash"
-                >
-                  <Wallet className="w-5 h-5" />
-                  <div className="text-center">
-                    <p className="font-semibold">Cash</p>
-                    <p className="text-xs text-muted-foreground">No fees</p>
-                  </div>
-                </Label>
-              </div>
-              <div>
-                <RadioGroupItem
-                  value="card"
-                  id="card"
-                  className="peer sr-only"
-                  data-testid="radio-payment-card"
-                />
-                <Label
-                  htmlFor="card"
-                  className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-muted/50 p-4 hover-elevate cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
-                  data-testid="label-payment-card"
-                >
-                  <CreditCard className="w-5 h-5" />
-                  <div className="text-center">
-                    <p className="font-semibold">Card</p>
-                    <p className="text-xs text-muted-foreground">+2.5% fee</p>
-                  </div>
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          <Separator className="my-4" />
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-mono" data-testid="text-subtotal">
-                ${subtotal.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Tax (6%)</span>
-              <span className="font-mono" data-testid="text-tax">
-                ${taxAmount.toFixed(2)}
-              </span>
-            </div>
-            {paymentMethod === "card" && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Card Processing Fee (2.5%)</span>
-                <span className="font-mono" data-testid="text-card-fee">
-                  ${cardFee.toFixed(2)}
-                </span>
               </div>
             )}
           </div>

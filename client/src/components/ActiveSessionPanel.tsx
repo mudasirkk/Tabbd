@@ -1,4 +1,4 @@
-import { Clock, ShoppingBag, Receipt } from "lucide-react";
+import { Clock, ShoppingBag, Receipt, ArrowRightLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ interface ActiveSessionPanelProps {
   items: SessionItem[];
   onAddItems: () => void;
   onCheckout: () => void;
+  onTransfer: () => void;
 }
 
 export function ActiveSessionPanel({
@@ -28,6 +29,7 @@ export function ActiveSessionPanel({
   items,
   onAddItems,
   onCheckout,
+  onTransfer,
 }: ActiveSessionPanelProps) {
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -132,15 +134,25 @@ export function ActiveSessionPanel({
             </span>
           </div>
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={onCheckout}
-            data-testid="button-end-session"
-          >
-            <Receipt className="w-4 h-4 mr-2" />
-            End Session & Checkout
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={onTransfer}
+              data-testid="button-transfer-session"
+            >
+              <ArrowRightLeft className="w-4 h-4 mr-2" />
+              Transfer
+            </Button>
+            <Button
+              size="lg"
+              onClick={onCheckout}
+              data-testid="button-end-session"
+            >
+              <Receipt className="w-4 h-4 mr-2" />
+              Checkout
+            </Button>
+          </div>
         </div>
       </div>
     </Card>

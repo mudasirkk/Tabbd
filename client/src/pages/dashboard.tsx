@@ -74,8 +74,8 @@ const initialStations: Station[] = [
   { id: "P4", name: "Right 1", type: "pool", isActive: false, items: [] },
   { id: "P5", name: "Right 2", type: "pool", isActive: false, items: [] },
   { id: "P6", name: "Right 3", type: "pool", isActive: false, items: [] },
-  { id: "G1", name: "Gaming Station 1", type: "gaming", isActive: false, items: [] },
-  { id: "G2", name: "Gaming Station 2", type: "gaming", isActive: false, items: [] },
+  { id: "G1", name: "Gaming Left", type: "gaming", isActive: false, items: [] },
+  { id: "G2", name: "Gaming Right", type: "gaming", isActive: false, items: [] },
   { id: "G3", name: "Gaming Station 3", type: "gaming", isActive: false, items: [] },
   { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: [] },
 ];
@@ -234,8 +234,8 @@ export default function Dashboard() {
       P4: "Right 1",
       P5: "Right 2",
       P6: "Right 3",
-      G1: "Gaming Station 1",
-      G2: "Gaming Station 2",
+      G1: "Gaming Left",
+      G2: "Gaming Right",
       G3: "Gaming Station 3",
       F1: "Foosball Table",
     };

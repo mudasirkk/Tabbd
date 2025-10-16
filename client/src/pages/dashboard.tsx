@@ -7,6 +7,7 @@ import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
 import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { StartSessionDialog } from "@/components/StartSessionDialog";
+import { TransferSessionDialog } from "@/components/TransferSessionDialog";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -133,6 +134,7 @@ export default function Dashboard() {
   const [addItemsOpen, setAddItemsOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [startSessionOpen, setStartSessionOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
 
@@ -478,6 +480,61 @@ export default function Dashboard() {
     }
   };
 
+  const handleTransferSession = (destinationStationId: string) => {
+    if (!selectedStationId) return;
+    
+    const sourceStation = stations.find((s) => s.id === selectedStationId);
+    const destinationStation = stations.find((s) => s.id === destinationStationId);
+    
+    if (!sourceStation || !destinationStation || !sourceStation.isActive) return;
+    
+    // Calculate elapsed time in seconds
+    const elapsedSeconds = getTimeElapsed(sourceStation);
+    
+    // Calculate backdated start time for destination
+    // If source was paused, use pausedTime, otherwise use current time
+    const now = sourceStation.isPaused && sourceStation.pausedTime 
+      ? sourceStation.pausedTime 
+      : Date.now();
+    const backdatedStartTime = now - (elapsedSeconds * 1000);
+    
+    // Transfer items (preserve price snapshots)
+    const transferredItems = [...sourceStation.items];
+    
+    setStations((prev) =>
+      prev.map((s) => {
+        if (s.id === selectedStationId) {
+          // End source station
+          return { 
+            ...s, 
+            isActive: false, 
+            isPaused: false,
+            startTime: undefined, 
+            pausedTime: undefined, 
+            items: [] 
+          };
+        } else if (s.id === destinationStationId) {
+          // Start destination station with backdated time and items
+          return {
+            ...s,
+            isActive: true,
+            isPaused: sourceStation.isPaused,
+            startTime: backdatedStartTime,
+            pausedTime: sourceStation.isPaused ? now : undefined,
+            items: transferredItems,
+          };
+        }
+        return s;
+      })
+    );
+    
+    setSelectedStationId(destinationStationId);
+    toast({
+      title: "Session Transferred",
+      description: `Transferred from ${sourceStation.name} to ${destinationStation.name}`,
+    });
+  };
+
   const getTimeElapsed = (station: Station): number => {
     if (!station.isActive || !station.startTime) return 0;
     if (station.isPaused && station.pausedTime) {
@@ -629,6 +686,7 @@ export default function Dashboard() {
                   items={getSessionItems(selectedStation)}
                   onAddItems={handleAddItems}
                   onCheckout={() => handleOpenCheckout(selectedStation.id)}
+                  onTransfer={() => setTransferOpen(true)}
                 />
               </div>
             ) : (
@@ -691,6 +749,14 @@ export default function Dashboard() {
             timeCharge={getTimeCharge(selectedStation)}
             items={getSessionItems(selectedStation)}
             onConfirmCheckout={handleConfirmCheckout}
+          />
+
+          <TransferSessionDialog
+            open={transferOpen}
+            onOpenChange={setTransferOpen}
+            currentStationName={selectedStation.name}
+            availableStations={stations.filter((s) => !s.isActive)}
+            onConfirmTransfer={handleTransferSession}
           />
         </>
       )}

@@ -14,6 +14,7 @@ interface StationCardProps {
   isPaused?: boolean;
   timeElapsed?: number;
   currentCharge?: number;
+  startTime?: number;
   onStart: () => void;
   onStop: () => void;
   onResume?: () => void;
@@ -41,6 +42,7 @@ export function StationCard({
   isPaused = false,
   timeElapsed = 0,
   currentCharge = 0,
+  startTime,
   onStart,
   onStop,
   onResume,
@@ -56,6 +58,14 @@ export function StationCard({
 
   const formatCurrency = (amount: number) => {
     return `$${amount.toFixed(2)}`;
+  };
+
+  const formatStartTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
 
   return (
@@ -92,6 +102,11 @@ export function StationCard({
 
         {isActive ? (
           <div className="space-y-3">
+            {startTime && (
+              <div className="text-xs text-muted-foreground" data-testid={`text-start-time-${id}`}>
+                Started at {formatStartTime(startTime)}
+              </div>
+            )}
             <div className="flex items-center gap-2 text-muted-foreground">
               <Clock className="w-4 h-4" />
               <span className="text-3xl font-mono font-bold text-foreground" data-testid={`text-timer-${id}`}>

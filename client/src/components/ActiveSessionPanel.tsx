@@ -16,6 +16,7 @@ interface ActiveSessionPanelProps {
   stationName: string;
   timeElapsed: number;
   timeCharge: number;
+  startTime?: number;
   items: SessionItem[];
   onAddItems: () => void;
   onCheckout: () => void;
@@ -26,6 +27,7 @@ export function ActiveSessionPanel({
   stationName,
   timeElapsed,
   timeCharge,
+  startTime,
   items,
   onAddItems,
   onCheckout,
@@ -36,6 +38,14 @@ export function ActiveSessionPanel({
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const formatStartTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -54,6 +64,11 @@ export function ActiveSessionPanel({
         </div>
 
         <div className="space-y-4">
+          {startTime && (
+            <div className="text-sm text-muted-foreground" data-testid="text-panel-start-time">
+              Started at {formatStartTime(startTime)}
+            </div>
+          )}
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-3">
               <Clock className="w-5 h-5 text-muted-foreground" />

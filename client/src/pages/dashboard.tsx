@@ -637,6 +637,7 @@ export default function Dashboard() {
                     isPaused={station.isPaused}
                     timeElapsed={getTimeElapsed(station)}
                     currentCharge={getTimeCharge(station)}
+                    startTime={station.startTime}
                     onStart={() => handleOpenStartDialog(station.id)}
                     onStop={() => handleStopSession(station.id)}
                     onResume={() => handleResumeSession(station.id)}
@@ -683,6 +684,7 @@ export default function Dashboard() {
                   stationName={selectedStation.name}
                   timeElapsed={getTimeElapsed(selectedStation)}
                   timeCharge={getTimeCharge(selectedStation)}
+                  startTime={selectedStation.startTime}
                   items={getSessionItems(selectedStation)}
                   onAddItems={handleAddItems}
                   onCheckout={() => handleOpenCheckout(selectedStation.id)}

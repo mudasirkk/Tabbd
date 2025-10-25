@@ -157,13 +157,6 @@ export default function Dashboard() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/square/status"] });
       window.history.replaceState({}, '', '/');
-    } else if (params.get('square_denied') === 'true') {
-      toast({
-        title: "Authorization Cancelled",
-        description: "You cancelled the Square authorization.",
-        variant: "destructive",
-      });
-      window.history.replaceState({}, '', '/');
     }
   }, [toast]);
 

@@ -155,51 +155,32 @@ export default function Dashboard() {
     }
   }, [stations]);
 
-  // Check if Square is connected on mount
+  // Check if Square is connected on mount and handle OAuth callback
   useEffect(() => {
     const token = sessionStorage.getItem('square_access_token');
     setIsSquareConnected(!!token);
-  }, []);
 
-  // Handle Square OAuth callback
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      const state = urlParams.get('state');
+    // Handle OAuth success/error from callback
+    const oauthSuccess = sessionStorage.getItem('square_oauth_success');
+    const oauthError = sessionStorage.getItem('square_oauth_error');
 
-      if (code) {
-        try {
-          const response = await apiRequest("POST", "/api/square/oauth/callback", {
-            code,
-            state,
-          });
+    if (oauthSuccess) {
+      setIsSquareConnected(true);
+      toast({
+        title: "Connected to Square!",
+        description: "Successfully authorized with Square POS.",
+      });
+      sessionStorage.removeItem('square_oauth_success');
+    }
 
-          if (response.access_token) {
-            sessionStorage.setItem('square_access_token', response.access_token);
-            sessionStorage.setItem('square_merchant_id', response.merchant_id);
-            setIsSquareConnected(true);
-            
-            toast({
-              title: "Connected to Square!",
-              description: "Successfully authorized with Square POS.",
-            });
-
-            // Clean up URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        } catch (error) {
-          console.error("Failed to exchange OAuth code:", error);
-          toast({
-            title: "Connection Failed",
-            description: "Could not connect to Square. Please try again.",
-            variant: "destructive",
-          });
-        }
-      }
-    };
-
-    handleOAuthCallback();
+    if (oauthError) {
+      toast({
+        title: "Connection Failed",
+        description: oauthError,
+        variant: "destructive",
+      });
+      sessionStorage.removeItem('square_oauth_error');
+    }
   }, [toast]);
   
   // Migration effect: Convert old items format to new format
@@ -634,10 +615,10 @@ export default function Dashboard() {
                     });
                   } else {
                     const squareAppId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
-                    const redirectUri = window.location.origin;
+                    const redirectUri = `${window.location.origin}/api/square/oauth/callback`;
                     const state = Math.random().toString(36).substring(2, 15);
                     const scope = 'ITEMS_READ+PAYMENTS_READ';
-                    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}`;
+                    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
                     window.location.href = authUrl;
                   }
                 }}

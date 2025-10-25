@@ -5,10 +5,10 @@ import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Square OAuth callback handler
-  app.post("/api/square/oauth/callback", async (req, res) => {
+  // Square OAuth callback handler - GET endpoint for Square redirect
+  app.get("/api/square/oauth/callback", async (req, res) => {
     try {
-      const { code, state } = req.body;
+      const { code, state } = req.query;
       
       if (!code) {
         return res.status(400).json({ error: "Authorization code is required" });
@@ -32,22 +32,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!tokenResponse.ok) {
         const error = await tokenResponse.text();
         console.error("Square token exchange failed:", error);
-        return res.status(500).json({ error: "Failed to exchange authorization code" });
+        // Return HTML page with error
+        return res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Square Connection Failed</title></head>
+          <body>
+            <script>
+              sessionStorage.setItem('square_oauth_error', 'Failed to connect to Square');
+              window.location.href = '/';
+            </script>
+          </body>
+          </html>
+        `);
       }
 
       const tokenData = await tokenResponse.json();
       
-      // Return the access token to the frontend
-      // In production, you'd want to store this securely in a database
-      res.json({
-        access_token: tokenData.access_token,
-        expires_at: tokenData.expires_at,
-        merchant_id: tokenData.merchant_id,
-        refresh_token: tokenData.refresh_token,
-      });
+      // Return HTML page that stores tokens and redirects
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Connection Successful</title></head>
+        <body>
+          <script>
+            sessionStorage.setItem('square_access_token', '${tokenData.access_token}');
+            sessionStorage.setItem('square_merchant_id', '${tokenData.merchant_id}');
+            sessionStorage.setItem('square_oauth_success', 'true');
+            window.location.href = '/';
+          </script>
+        </body>
+        </html>
+      `);
     } catch (error) {
       console.error("Error in Square OAuth callback:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Error</title></head>
+        <body>
+          <script>
+            sessionStorage.setItem('square_oauth_error', 'Internal server error');
+            window.location.href = '/';
+          </script>
+        </body>
+        </html>
+      `);
     }
   });
 

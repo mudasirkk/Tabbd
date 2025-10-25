@@ -296,29 +296,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create scheduled pickup time (current time + 30 minutes)
-      const pickupTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-
-      // Create order with scheduled pickup fulfillment
+      // Create order without fulfillment (simpler, allows payment)
       const orderData = {
         idempotency_key: idempotencyKey,
         order: {
           location_id: locationId,
           line_items: lineItems,
           state: "OPEN",
-          fulfillments: [{
-            type: "PICKUP",
-            state: "PROPOSED",
-            pickup_details: {
-              recipient: {
-                display_name: `${stationName} Customer`
-              },
-              schedule_type: "SCHEDULED",
-              pickup_at: pickupTime,
-              prep_time_duration: "PT10M", // 10 minutes prep time
-              note: `${pricingTier === "solo" ? "Solo" : "Group"} pricing - ${(timeElapsed / 3600).toFixed(2)} hours`
-            }
-          }],
           metadata: {
             station_name: stationName,
             pricing_tier: pricingTier || "group",
@@ -327,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      console.log("[Square Orders] Creating scheduled order...", JSON.stringify(orderData, null, 2));
+      console.log("[Square Orders] Creating order...", JSON.stringify(orderData, null, 2));
 
       const createResponse = await fetch(
         "https://connect.squareup.com/v2/orders",
@@ -353,7 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const orderId = createData.order?.id;
-      console.log("[Square Orders] Scheduled order created:", orderId);
+      console.log("[Square Orders] Order created:", orderId);
 
       // Step 2: Mark order as paid so it shows in Square Dashboard
       const payIdempotencyKey = randomBytes(32).toString("hex");
@@ -387,7 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log("[Square Orders] Scheduled order paid and visible in dashboard:", orderId);
+      console.log("[Square Orders] Order paid and visible in dashboard:", orderId);
 
       res.json(payData);
     } catch (error) {

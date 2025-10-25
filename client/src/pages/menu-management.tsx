@@ -314,9 +314,10 @@ export default function MenuManagement() {
               ? item.item_data.name 
               : `${item.item_data.name} - ${variationName}`;
             
-            // Get category name from Square or default to "Custom"
-            const categoryName = item.item_data.category_id 
-              ? categoryMap.get(item.item_data.category_id) || "Custom"
+            // Get category name from reporting_category (primary category)
+            const categoryId = item.item_data.reporting_category?.id;
+            const categoryName = categoryId 
+              ? categoryMap.get(categoryId) || "Custom"
               : "Custom";
             
             itemsToImport.push({
@@ -650,67 +651,84 @@ export default function MenuManagement() {
                     {selectedSquareItems.size} selected
                   </span>
                 </div>
-                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                   {(() => {
                     // Build category lookup map
                     const categories = squareCatalog.objects.filter((obj: any) => obj.type === "CATEGORY");
                     const categoryMap = new Map();
                     categories.forEach((cat: any) => {
-                      categoryMap.set(cat.id, cat.category_data?.name || "Custom");
+                      categoryMap.set(cat.id, cat.category_data?.name || "Uncategorized");
                     });
 
                     // Filter only ITEM type objects
                     const items = squareCatalog.objects.filter((obj: any) => obj.type === "ITEM");
 
-                    return items.map((item: any) => {
-                      const categoryName = item.item_data.category_id 
-                        ? categoryMap.get(item.item_data.category_id) || "Custom"
-                        : "Custom";
+                    // Group items by their reporting category
+                    const groupedItems = new Map<string, any[]>();
+                    items.forEach((item: any) => {
+                      const categoryId = item.item_data.reporting_category?.id || "uncategorized";
+                      if (!groupedItems.has(categoryId)) {
+                        groupedItems.set(categoryId, []);
+                      }
+                      groupedItems.get(categoryId)!.push(item);
+                    });
 
+                    // Render items grouped by category
+                    return Array.from(groupedItems.entries()).map(([categoryId, categoryItems]) => {
+                      const categoryName = categoryMap.get(categoryId) || "Uncategorized";
+                      
                       return (
-                        <Card key={item.id} className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <h3 className="font-semibold text-base">{item.item_data.name}</h3>
-                              <span className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground">
-                                {categoryName}
-                              </span>
-                            </div>
-                            {item.item_data.variations && item.item_data.variations.length > 0 && (
-                              <div className="space-y-2">
-                                {item.item_data.variations.map((variation: any) => {
-                                  const variationKey = `${item.id}-${variation.id}`;
-                                  const isSelected = selectedSquareItems.has(variationKey);
-                                  const price = variation.item_variation_data.price_money?.amount || 0;
-                                  const variationName = variation.item_variation_data.name;
-                                  
-                                  return (
-                                    <div
-                                      key={variation.id}
-                                      className="flex items-center justify-between p-3 rounded-md border hover-elevate cursor-pointer"
-                                      onClick={() => toggleSquareItem(item.id, variation.id)}
-                                      data-testid={`square-item-${variationKey}`}
-                                    >
-                                      <div className="flex items-center gap-3 flex-1">
-                                        <Checkbox
-                                          checked={isSelected}
-                                          onCheckedChange={() => toggleSquareItem(item.id, variation.id)}
-                                          data-testid={`checkbox-${variationKey}`}
-                                        />
-                                        <div className="flex-1">
-                                          <p className="font-medium">{variationName}</p>
-                                        </div>
-                                      </div>
-                                      <span className="font-mono font-bold text-primary">
-                                        ${(price / 100).toFixed(2)}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+                        <div key={categoryId} className="space-y-3">
+                          <div className="sticky top-0 bg-background z-10 pb-2 border-b">
+                            <h3 className="font-bold text-lg">{categoryName}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              {categoryItems.length} item{categoryItems.length !== 1 ? 's' : ''}
+                            </p>
                           </div>
-                        </Card>
+                          
+                          <div className="space-y-2 pl-2">
+                            {categoryItems.map((item: any) => (
+                              <Card key={item.id} className="p-3">
+                                <div className="space-y-2">
+                                  <h4 className="font-semibold text-sm">{item.item_data.name}</h4>
+                                  {item.item_data.variations && item.item_data.variations.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      {item.item_data.variations.map((variation: any) => {
+                                        const variationKey = `${item.id}-${variation.id}`;
+                                        const isSelected = selectedSquareItems.has(variationKey);
+                                        const price = variation.item_variation_data.price_money?.amount || 0;
+                                        const variationName = variation.item_variation_data.name;
+                                        
+                                        return (
+                                          <div
+                                            key={variation.id}
+                                            className="flex items-center justify-between p-2.5 rounded-md border hover-elevate cursor-pointer"
+                                            onClick={() => toggleSquareItem(item.id, variation.id)}
+                                            data-testid={`square-item-${variationKey}`}
+                                          >
+                                            <div className="flex items-center gap-3 flex-1">
+                                              <Checkbox
+                                                checked={isSelected}
+                                                onCheckedChange={() => toggleSquareItem(item.id, variation.id)}
+                                                data-testid={`checkbox-${variationKey}`}
+                                              />
+                                              <div className="flex-1">
+                                                <p className="font-medium text-sm">{variationName}</p>
+                                              </div>
+                                            </div>
+                                            <span className="font-mono font-bold text-primary">
+                                              ${(price / 100).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
                       );
                     });
                   })()}

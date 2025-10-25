@@ -1,0 +1,451 @@
+{
+    "objects": [
+        {
+            "type": "ITEM",
+            "id": "CYL7QUA7GAQN2SGJ5KQIVXI5",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": false,
+            "present_at_location_ids": [
+                "LRZZ0SKH32Z1C"
+            ],
+            "item_data": {
+                "name": "Cinnamon Roll",
+                "description": "Soft and gooey cinnamon roll.",
+                "is_taxable": true,
+                "variations": [
+                    {
+                        "type": "ITEM_VARIATION",
+                        "id": "2WDOHG6BKLOGNQKPMTNMWRMQ",
+                        "updated_at": "2025-10-25T03:50:04.772Z",
+                        "created_at": "2025-10-25T03:50:04.896Z",
+                        "version": 1761364204772,
+                        "is_deleted": false,
+                        "present_at_all_locations": false,
+                        "present_at_location_ids": [
+                            "LRZZ0SKH32Z1C"
+                        ],
+                        "item_variation_data": {
+                            "item_id": "CYL7QUA7GAQN2SGJ5KQIVXI5",
+                            "name": "Regular",
+                            "ordinal": 0,
+                            "pricing_type": "FIXED_PRICING",
+                            "price_money": {
+                                "amount": 250,
+                                "currency": "USD"
+                            },
+                            "sellable": true,
+                            "stockable": true,
+                            "channels": [
+                                "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                            ]
+                        }
+                    }
+                ],
+                "product_type": "FOOD_AND_BEV",
+                "categories": [
+                    {
+                        "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+                        "ordinal": 0
+                    },
+                    {
+                        "id": "FSH6U5GXFR5GX5HKXME23IWZ",
+                        "ordinal": 0
+                    }
+                ],
+                "description_html": "<p>Soft and gooey cinnamon roll.</p>",
+                "description_plaintext": "Soft and gooey cinnamon roll.",
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "is_archived": false,
+                "reporting_category": {
+                    "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+                    "ordinal": 0
+                }
+            }
+        },
+        {
+            "type": "ITEM",
+            "id": "EPYUV7DUJRDTOYOIPH2ELWF5",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": false,
+            "present_at_location_ids": [
+                "LRZZ0SKH32Z1C"
+            ],
+            "item_data": {
+                "name": "Croissant",
+                "description": "Buttery and flaky croissant.",
+                "is_taxable": true,
+                "variations": [
+                    {
+                        "type": "ITEM_VARIATION",
+                        "id": "WKDAGHOXHTZQ3NL4RTTILABD",
+                        "updated_at": "2025-10-25T03:50:04.772Z",
+                        "created_at": "2025-10-25T03:50:04.896Z",
+                        "version": 1761364204772,
+                        "is_deleted": false,
+                        "present_at_all_locations": false,
+                        "present_at_location_ids": [
+                            "LRZZ0SKH32Z1C"
+                        ],
+                        "item_variation_data": {
+                            "item_id": "EPYUV7DUJRDTOYOIPH2ELWF5",
+                            "name": "Regular",
+                            "ordinal": 0,
+                            "pricing_type": "FIXED_PRICING",
+                            "price_money": {
+                                "amount": 300,
+                                "currency": "USD"
+                            },
+                            "sellable": true,
+                            "stockable": true,
+                            "channels": [
+                                "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                            ]
+                        }
+                    }
+                ],
+                "product_type": "FOOD_AND_BEV",
+                "categories": [
+                    {
+                        "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+                        "ordinal": 1
+                    },
+                    {
+                        "id": "FSH6U5GXFR5GX5HKXME23IWZ",
+                        "ordinal": 1
+                    }
+                ],
+                "description_html": "<p>Buttery and flaky croissant.</p>",
+                "description_plaintext": "Buttery and flaky croissant.",
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "is_archived": false,
+                "reporting_category": {
+                    "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+                    "ordinal": 1
+                }
+            }
+        },
+        {
+            "type": "ITEM",
+            "id": "VMPQ6ARB5CTPSXV72TZSZAXG",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": false,
+            "present_at_location_ids": [
+                "LRZZ0SKH32Z1C"
+            ],
+            "item_data": {
+                "name": "Danish Pastry",
+                "description": "Delicate and sweet Danish pastry.",
+                "is_taxable": true,
+                "variations": [
+                    {
+                        "type": "ITEM_VARIATION",
+                        "id": "Y6ISYEEVJSLU576F4YHXZDAM",
+                        "updated_at": "2025-10-25T03:50:04.772Z",
+                        "created_at": "2025-10-25T03:50:04.896Z",
+                        "version": 1761364204772,
+                        "is_deleted": false,
+                        "present_at_all_locations": false,
+                        "present_at_location_ids": [
+                            "LRZZ0SKH32Z1C"
+                        ],
+                        "item_variation_data": {
+                            "item_id": "VMPQ6ARB5CTPSXV72TZSZAXG",
+                            "name": "Regular",
+                            "ordinal": 0,
+                            "pricing_type": "FIXED_PRICING",
+                            "price_money": {
+                                "amount": 350,
+                                "currency": "USD"
+                            },
+                            "sellable": true,
+                            "stockable": true,
+                            "channels": [
+                                "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                            ]
+                        }
+                    }
+                ],
+                "product_type": "FOOD_AND_BEV",
+                "categories": [
+                    {
+                        "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+                        "ordinal": 2
+                    },
+                    {
+                        "id": "FSH6U5GXFR5GX5HKXME23IWZ",
+                        "ordinal": 2
+                    }
+                ],
+                "description_html": "<p>Delicate and sweet Danish pastry.</p>",
+                "description_plaintext": "Delicate and sweet Danish pastry.",
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "is_archived": false,
+                "reporting_category": {
+                    "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+                    "ordinal": 2
+                }
+            }
+        },
+        {
+            "type": "ITEM",
+            "id": "EYQ3QZMK4KEB65LNYCOERQ6I",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": false,
+            "present_at_location_ids": [
+                "LRZZ0SKH32Z1C"
+            ],
+            "item_data": {
+                "name": "Coffee",
+                "description": "Freshly brewed coffee.",
+                "is_taxable": true,
+                "variations": [
+                    {
+                        "type": "ITEM_VARIATION",
+                        "id": "CLJ3TN4IOGW32UWATFISMD75",
+                        "updated_at": "2025-10-25T03:50:04.772Z",
+                        "created_at": "2025-10-25T03:50:04.896Z",
+                        "version": 1761364204772,
+                        "is_deleted": false,
+                        "present_at_all_locations": false,
+                        "present_at_location_ids": [
+                            "LRZZ0SKH32Z1C"
+                        ],
+                        "item_variation_data": {
+                            "item_id": "EYQ3QZMK4KEB65LNYCOERQ6I",
+                            "name": "Regular",
+                            "ordinal": 0,
+                            "pricing_type": "FIXED_PRICING",
+                            "price_money": {
+                                "amount": 200,
+                                "currency": "USD"
+                            },
+                            "sellable": true,
+                            "stockable": true,
+                            "channels": [
+                                "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                            ]
+                        }
+                    }
+                ],
+                "product_type": "FOOD_AND_BEV",
+                "categories": [
+                    {
+                        "id": "5YIIP26MB6NXWWXQ7VL7HKI4",
+                        "ordinal": 0
+                    },
+                    {
+                        "id": "4PODBSZ7FUHDPNTSFP5PSKBN",
+                        "ordinal": 0
+                    }
+                ],
+                "description_html": "<p>Freshly brewed coffee.</p>",
+                "description_plaintext": "Freshly brewed coffee.",
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "is_archived": false,
+                "reporting_category": {
+                    "id": "5YIIP26MB6NXWWXQ7VL7HKI4",
+                    "ordinal": 0
+                }
+            }
+        },
+        {
+            "type": "ITEM",
+            "id": "WQ6Z3DKZ7I4OJK3IVPCNUFSG",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": false,
+            "present_at_location_ids": [
+                "LRZZ0SKH32Z1C"
+            ],
+            "item_data": {
+                "name": "Tea",
+                "description": "Hot aromatic tea.",
+                "is_taxable": true,
+                "variations": [
+                    {
+                        "type": "ITEM_VARIATION",
+                        "id": "KPKC5M3AM6BJIDN3HY7QCEGA",
+                        "updated_at": "2025-10-25T03:50:04.772Z",
+                        "created_at": "2025-10-25T03:50:04.896Z",
+                        "version": 1761364204772,
+                        "is_deleted": false,
+                        "present_at_all_locations": false,
+                        "present_at_location_ids": [
+                            "LRZZ0SKH32Z1C"
+                        ],
+                        "item_variation_data": {
+                            "item_id": "WQ6Z3DKZ7I4OJK3IVPCNUFSG",
+                            "name": "Regular",
+                            "ordinal": 0,
+                            "pricing_type": "FIXED_PRICING",
+                            "price_money": {
+                                "amount": 150,
+                                "currency": "USD"
+                            },
+                            "sellable": true,
+                            "stockable": true,
+                            "channels": [
+                                "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                            ]
+                        }
+                    }
+                ],
+                "product_type": "FOOD_AND_BEV",
+                "categories": [
+                    {
+                        "id": "5YIIP26MB6NXWWXQ7VL7HKI4",
+                        "ordinal": 1
+                    },
+                    {
+                        "id": "4PODBSZ7FUHDPNTSFP5PSKBN",
+                        "ordinal": 1
+                    }
+                ],
+                "description_html": "<p>Hot aromatic tea.</p>",
+                "description_plaintext": "Hot aromatic tea.",
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "is_archived": false,
+                "reporting_category": {
+                    "id": "5YIIP26MB6NXWWXQ7VL7HKI4",
+                    "ordinal": 1
+                }
+            }
+        },
+        {
+            "type": "CATEGORY",
+            "id": "QNDXTBEUAOOC26574QA5BTBK",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": true,
+            "category_data": {
+                "name": "Test Menu",
+                "category_type": "MENU_CATEGORY",
+                "parent_category": {
+                    "ordinal": -2251731094208512
+                },
+                "is_top_level": true,
+                "channels": [
+                    "CH_V2WOt3SLAA6coWjjLgxLZx2hq1iWtNN34vHbmTR29945o",
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "online_visibility": false
+            }
+        },
+        {
+            "type": "CATEGORY",
+            "id": "FSH6U5GXFR5GX5HKXME23IWZ",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": true,
+            "category_data": {
+                "name": "Pastries",
+                "category_type": "MENU_CATEGORY",
+                "parent_category": {
+                    "id": "QNDXTBEUAOOC26574QA5BTBK",
+                    "ordinal": 0
+                },
+                "is_top_level": false,
+                "channels": [
+                    "CH_V2WOt3SLAA6coWjjLgxLZx2hq1iWtNN34vHbmTR29945o",
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "online_visibility": false,
+                "root_category": "QNDXTBEUAOOC26574QA5BTBK"
+            }
+        },
+        {
+            "type": "CATEGORY",
+            "id": "4PODBSZ7FUHDPNTSFP5PSKBN",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": true,
+            "category_data": {
+                "name": "Beverages",
+                "category_type": "MENU_CATEGORY",
+                "parent_category": {
+                    "id": "QNDXTBEUAOOC26574QA5BTBK",
+                    "ordinal": 1
+                },
+                "is_top_level": false,
+                "channels": [
+                    "CH_V2WOt3SLAA6coWjjLgxLZx2hq1iWtNN34vHbmTR29945o",
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "online_visibility": false,
+                "root_category": "QNDXTBEUAOOC26574QA5BTBK"
+            }
+        },
+        {
+            "type": "CATEGORY",
+            "id": "KARRDE3PY6ZF7S46I7ISJPEN",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": true,
+            "category_data": {
+                "name": "Pastries",
+                "category_type": "REGULAR_CATEGORY",
+                "parent_category": {
+                    "ordinal": -2251662374731776
+                },
+                "is_top_level": true,
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "online_visibility": true
+            }
+        },
+        {
+            "type": "CATEGORY",
+            "id": "5YIIP26MB6NXWWXQ7VL7HKI4",
+            "updated_at": "2025-10-25T03:50:04.772Z",
+            "created_at": "2025-10-25T03:50:04.896Z",
+            "version": 1761364204772,
+            "is_deleted": false,
+            "present_at_all_locations": true,
+            "category_data": {
+                "name": "Beverages",
+                "category_type": "REGULAR_CATEGORY",
+                "parent_category": {
+                    "ordinal": -2251593655255040
+                },
+                "is_top_level": true,
+                "channels": [
+                    "CH_BQRP2IkKSKZUV9uPcfQMZx2hq1iWtNN34vHbmTR29945o"
+                ],
+                "online_visibility": true
+            }
+        }
+    ]
+}

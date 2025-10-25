@@ -575,6 +575,20 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <Button
                 variant="outline"
+                onClick={() => {
+                  const squareAppId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
+                  const redirectUri = window.location.origin;
+                  const state = Math.random().toString(36).substring(2, 15);
+                  const scope = 'ITEMS_READ+PAYMENTS_READ';
+                  const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}`;
+                  window.location.href = authUrl;
+                }}
+                data-testid="button-connect-square"
+              >
+                Connect to Square
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setLocation("/menu")}
                 data-testid="button-menu-management"
               >

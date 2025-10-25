@@ -81,9 +81,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square OAuth] Access token:", tokenData.access_token ? 'present' : 'MISSING');
       console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
 
-      if (!tokenData.access_token) {
-        console.error("[Square OAuth] ERROR: access_token is missing from response!");
-        return res.status(500).send("Invalid token response from Square");
+      // Validate all required fields exist
+      if (!tokenData.access_token || !tokenData.merchant_id) {
+        console.error("[Square OAuth] ERROR: Missing required fields!");
+        console.error("[Square OAuth] access_token:", tokenData.access_token);
+        console.error("[Square OAuth] merchant_id:", tokenData.merchant_id);
+        return res.status(500).json({
+          error: "Invalid token response from Square",
+          tokenData: tokenData
+        });
       }
 
       // Save tokens to database

@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type MenuItem, type InsertMenuItem } from "@shared/schema";
+import { type User, type InsertUser, type MenuItem, type InsertMenuItem, type SquareToken, type InsertSquareToken } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 // modify the interface with any CRUD methods
@@ -16,10 +16,14 @@ export interface IStorage {
   updateMenuItem(id: string, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined>;
   deleteMenuItem(id: string): Promise<boolean>;
   seedMenuItems(): Promise<void>;
+  
+  // Square tokens
+  saveSquareToken(token: InsertSquareToken): Promise<SquareToken>;
+  getSquareToken(): Promise<SquareToken | undefined>;
 }
 
 // Reference: blueprint:javascript_database
-import { users, menuItems } from "@shared/schema";
+import { users, menuItems, squareTokens } from "@shared/schema";
 import { db } from "./db";
 import { eq, count } from "drizzle-orm";
 
@@ -108,6 +112,21 @@ export class DatabaseStorage implements IStorage {
     for (const item of defaultMenuItems) {
       await this.createMenuItem(item);
     }
+  }
+
+  async saveSquareToken(token: InsertSquareToken): Promise<SquareToken> {
+    await db.delete(squareTokens);
+    
+    const [created] = await db
+      .insert(squareTokens)
+      .values(token)
+      .returning();
+    return created;
+  }
+
+  async getSquareToken(): Promise<SquareToken | undefined> {
+    const [token] = await db.select().from(squareTokens).limit(1);
+    return token || undefined;
   }
 }
 

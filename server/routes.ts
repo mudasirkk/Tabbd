@@ -296,13 +296,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create order without fulfillment (simpler, allows payment)
+      // Create order with fulfillment (will show as "active" when paid)
+      const pickupTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      
       const orderData = {
         idempotency_key: idempotencyKey,
         order: {
           location_id: locationId,
           line_items: lineItems,
           state: "OPEN",
+          fulfillments: [{
+            type: "PICKUP",
+            state: "PROPOSED",
+            pickup_details: {
+              recipient: {
+                display_name: `${stationName} Customer`
+              },
+              pickup_at: pickupTime,
+              note: `${pricingTier === "solo" ? "Solo" : "Group"} - ${(timeElapsed / 3600).toFixed(2)}hrs`
+            }
+          }],
           metadata: {
             station_name: stationName,
             pricing_tier: pricingTier || "group",

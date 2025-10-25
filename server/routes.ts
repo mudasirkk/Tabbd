@@ -211,6 +211,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DELETE /api/menu-items - Clear all menu items
+  app.delete("/api/menu-items", async (req, res) => {
+    try {
+      await storage.clearAllMenuItems();
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error clearing menu items:", error);
+      res.status(500).json({ error: "Failed to clear menu items" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

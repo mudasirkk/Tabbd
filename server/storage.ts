@@ -15,6 +15,7 @@ export interface IStorage {
   createMenuItem(item: InsertMenuItem): Promise<MenuItem>;
   updateMenuItem(id: string, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined>;
   deleteMenuItem(id: string): Promise<boolean>;
+  clearAllMenuItems(): Promise<void>;
   seedMenuItems(): Promise<void>;
   
   // Square tokens
@@ -85,6 +86,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(menuItems.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  async clearAllMenuItems(): Promise<void> {
+    await db.delete(menuItems);
   }
 
   async seedMenuItems(): Promise<void> {

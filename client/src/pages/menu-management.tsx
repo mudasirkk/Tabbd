@@ -12,6 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,6 +50,7 @@ export default function MenuManagement() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -137,6 +148,27 @@ export default function MenuManagement() {
     },
   });
 
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", "/api/menu-items");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/menu-items"] });
+      toast({
+        title: "All Items Cleared",
+        description: "All menu items have been deleted",
+      });
+      setClearAllDialogOpen(false);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to clear menu items",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenAddDialog = () => {
     setEditingItem(null);
     setFormData({ name: "", price: "", category: "Custom" });
@@ -218,10 +250,22 @@ export default function MenuManagement() {
                 </p>
               </div>
             </div>
-            <Button onClick={handleOpenAddDialog} data-testid="button-add-menu-item">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Menu Item
-            </Button>
+            <div className="flex items-center gap-2">
+              {menuItems.length > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setClearAllDialogOpen(true)}
+                  data-testid="button-clear-all"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear All Items
+                </Button>
+              )}
+              <Button onClick={handleOpenAddDialog} data-testid="button-add-menu-item">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Menu Item
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -378,6 +422,28 @@ export default function MenuManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={clearAllDialogOpen} onOpenChange={setClearAllDialogOpen}>
+        <AlertDialogContent data-testid="dialog-clear-all-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Menu Items?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all {menuItems.length} menu items from your database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-clear">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => clearAllMutation.mutate()}
+              disabled={clearAllMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-clear"
+            >
+              {clearAllMutation.isPending ? "Clearing..." : "Clear All Items"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

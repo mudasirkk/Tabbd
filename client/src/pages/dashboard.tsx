@@ -576,6 +576,12 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <Button
                 variant="outline"
+                data-testid="button-connect-square"
+              >
+                Connect to Square
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setLocation("/menu")}
                 data-testid="button-menu-management"
               >

@@ -43,121 +43,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Square OAuth callback with PKCE
+  // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
     try {
-      console.log('[Square OAuth Callback] Received callback from Square');
-      console.log('[Square OAuth Callback] Query params:', JSON.stringify(req.query));
+      const { code, state } = req.query;
       
+      console.log('[Square OAuth] Callback received');
+      console.log('[Square OAuth] Code:', code ? 'present' : 'missing');
+      console.log('[Square OAuth] State:', state);
+      
+      // Parse cookies
       const cookies = req.headers.cookie?.split(';').reduce((acc, cookie) => {
         const [key, value] = cookie.trim().split('=');
         acc[key] = value;
         return acc;
       }, {} as Record<string, string>) || {};
       
-      console.log('[Square OAuth Callback] Cookies received:', Object.keys(cookies).join(', '));
+      const expectedState = cookies['square-state'];
+      const codeVerifier = cookies['square-code-verifier'];
       
-      // Verify the state to protect against cross-site request forgery
-      if (cookies['square-state'] !== req.query['state']) {
-        console.error('[Square OAuth Callback] CSRF failed - state mismatch');
-        console.error('[Square OAuth Callback] Cookie state:', cookies['square-state']);
-        console.error('[Square OAuth Callback] Query state:', req.query['state']);
-        return res.status(403).json({ error: 'CSRF failed' });
-      }
-    
-    // Check if there was an error from Square
-    if (req.query['error']) {
-      console.error('[Square OAuth Callback] ERROR from Square:', req.query['error']);
-      
-      // Check to see if the seller clicked the 'deny' button
-      if (req.query['error'] === 'access_denied' && req.query['error_description'] === 'user_denied') {
-        console.log('[Square OAuth Callback] User denied authorization');
-        return res.redirect('/?square_denied=true');
+      // Validate state
+      if (!state || state !== expectedState) {
+        console.error('[Square OAuth] Invalid state parameter');
+        return res.status(400).send("Invalid state parameter");
       }
       
-      // Display the error and description for all other errors
-      return res.status(400).json({ 
-        error: `${req.query['error']}: ${req.query['error_description']}` 
-      });
-    }
-    
-    // Proceed if we have a valid authorization code
-    const code = req.query['code'];
-    const codeVerifier = cookies['square-code-verifier'];
-    
-    console.log('[Square OAuth Callback] Code:', code ? 'present' : 'missing');
-    console.log('[Square OAuth Callback] Code verifier:', codeVerifier ? 'present' : 'missing');
-    
-    if (!code || typeof code !== 'string') {
-      console.error('[Square OAuth Callback] ERROR: Invalid code');
-      return res.status(400).json({ error: 'Invalid authorization code' });
-    }
-    
-    if (!codeVerifier) {
-      console.error('[Square OAuth Callback] ERROR: Missing code verifier');
-      return res.status(400).json({ error: 'Missing code verifier' });
-    }
-    
-    if (!process.env.SQUARE_APPLICATION_SECRET) {
-      console.error('[Square OAuth Callback] CRITICAL ERROR: SQUARE_APPLICATION_SECRET is not set');
-      return res.status(500).json({ error: 'Server configuration error' });
-    }
-    
-    try {
-      console.log('[Square OAuth Callback] Exchanging authorization code for access token with PKCE...');
+      if (!code) {
+        console.error('[Square OAuth] Missing authorization code');
+        return res.status(400).send("Missing authorization code");
+      }
       
-      // API call to obtain token
-      const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
-        method: 'POST',
+      // Exchange code for access token
+      console.log('[Square OAuth] Exchanging code for token...');
+      const tokenResponse = await fetch("https://connect.squareup.com/oauth2/token", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Square-Version': '2024-10-17',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
+          client_id: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
           client_secret: process.env.SQUARE_APPLICATION_SECRET,
           code: code,
-          code_verifier: codeVerifier,
-          grant_type: 'authorization_code',
+          grant_type: "authorization_code",
+          code_verifier: codeVerifier, // PKCE
         }),
       });
       
-      console.log('[Square OAuth Callback] Token exchange response status:', tokenResponse.status);
+      const tokenData = await tokenResponse.json();
       
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        console.error('[Square OAuth Callback] ERROR: Token exchange failed');
-        console.error('[Square OAuth Callback] ERROR details:', JSON.stringify(errorData, null, 2));
-        throw new Error('Failed to obtain token');
+      if (tokenData.error) {
+        console.error("[Square OAuth] Error from Square:", tokenData);
+        return res.status(400).json(tokenData);
       }
       
-      const result = await tokenResponse.json();
+      console.log("[Square OAuth] Tokens received successfully");
+      console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
       
-      // Extract the returned tokens and merchant info
-      const {
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_at: expiresAt,
-        merchant_id: merchantId
-      } = result;
-      
-      console.log('[Square OAuth Callback] Token exchange successful!');
-      console.log('[Square OAuth Callback] Merchant ID:', merchantId);
-      console.log('[Square OAuth Callback] Access token received:', accessToken ? 'yes' : 'no');
-      console.log('[Square OAuth Callback] Refresh token received:', refreshToken ? 'yes' : 'no');
-      
-      // Update the database with the authorized Square data
-      console.log('[Square OAuth Callback] Saving tokens to database...');
+      // Save tokens in database
       await storage.saveSquareToken({
-        accessToken,
-        refreshToken: refreshToken || null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-        merchantId,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || null,
+        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
+        merchantId: tokenData.merchant_id,
       });
       
-      console.log('[Square OAuth Callback] Tokens saved successfully! Clearing cookies and redirecting...');
+      console.log("[Square OAuth] Tokens saved to database");
       
-      // Clear cookies and redirect to dashboard
+      // Clear cookies and redirect
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -171,22 +123,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </body>
         </html>
       `);
+      
     } catch (error) {
-      console.error('[Square OAuth Callback] FATAL ERROR during token exchange:', error);
-      if (error instanceof Error) {
-        console.error('[Square OAuth Callback] Error message:', error.message);
-        console.error('[Square OAuth Callback] Error stack:', error.stack);
-      }
-      return res.status(500).json({ error: 'Failed to complete authorization' });
-    }
-    } catch (outerError) {
-      console.error('[Square OAuth Callback] UNEXPECTED ERROR at callback entry:', outerError);
-      if (outerError instanceof Error) {
-        console.error('[Square OAuth Callback] Error name:', outerError.name);
-        console.error('[Square OAuth Callback] Error message:', outerError.message);
-        console.error('[Square OAuth Callback] Error stack:', outerError.stack);
-      }
-      return res.status(500).json({ error: 'Internal server error during OAuth callback' });
+      console.error("[Square OAuth] Callback error:", error);
+      res.status(500).send("Server error during OAuth callback");
     }
   });
 

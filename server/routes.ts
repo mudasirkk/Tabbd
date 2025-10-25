@@ -45,19 +45,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Square OAuth callback with PKCE
   app.get("/api/square/oauth/callback", async (req, res) => {
-    console.log('[Square OAuth Callback] Received callback from Square');
-    
-    const cookies = req.headers.cookie?.split(';').reduce((acc, cookie) => {
-      const [key, value] = cookie.trim().split('=');
-      acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>) || {};
-    
-    // Verify the state to protect against cross-site request forgery
-    if (cookies['square-state'] !== req.query['state']) {
-      console.error('[Square OAuth Callback] CSRF failed - state mismatch');
-      return res.status(403).json({ error: 'CSRF failed' });
-    }
+    try {
+      console.log('[Square OAuth Callback] Received callback from Square');
+      console.log('[Square OAuth Callback] Query params:', JSON.stringify(req.query));
+      
+      const cookies = req.headers.cookie?.split(';').reduce((acc, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, string>) || {};
+      
+      console.log('[Square OAuth Callback] Cookies received:', Object.keys(cookies).join(', '));
+      
+      // Verify the state to protect against cross-site request forgery
+      if (cookies['square-state'] !== req.query['state']) {
+        console.error('[Square OAuth Callback] CSRF failed - state mismatch');
+        console.error('[Square OAuth Callback] Cookie state:', cookies['square-state']);
+        console.error('[Square OAuth Callback] Query state:', req.query['state']);
+        return res.status(403).json({ error: 'CSRF failed' });
+      }
     
     // Check if there was an error from Square
     if (req.query['error']) {
@@ -172,6 +178,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('[Square OAuth Callback] Error stack:', error.stack);
       }
       return res.status(500).json({ error: 'Failed to complete authorization' });
+    }
+    } catch (outerError) {
+      console.error('[Square OAuth Callback] UNEXPECTED ERROR at callback entry:', outerError);
+      if (outerError instanceof Error) {
+        console.error('[Square OAuth Callback] Error name:', outerError.name);
+        console.error('[Square OAuth Callback] Error message:', outerError.message);
+        console.error('[Square OAuth Callback] Error stack:', outerError.stack);
+      }
+      return res.status(500).json({ error: 'Internal server error during OAuth callback' });
     }
   });
 

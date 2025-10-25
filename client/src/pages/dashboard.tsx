@@ -606,7 +606,7 @@ export default function Dashboard() {
                     });
                   } else {
                     console.log('[Frontend] Redirecting to Square OAuth...');
-                    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-o0gFxi0LCTcztITa6DWf2g&scope=MERCHANT_PROFILE_READ+ORDERS_WRITE+INVENTORY_READ+ITEMS_READ&session=false&redirect_uri=${encodeURIComponent(window.location.origin + '/api/square/oauth/callback')}`;
+                    const authUrl = 'https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-o0gFxi0LCTcztITa6DWf2g&scope=MERCHANT_PROFILE_READ+ORDERS_WRITE+INVENTORY_READ+ITEMS_READ&session=false&redirect_uri=https%3A%2F%2Fpool-cafe-manager-TalhaNadeem001.replit.app%2Fapi%2Fsquare%2Foauth%2Fcallback';
                     console.log('[Frontend] Auth URL:', authUrl);
                     window.location.href = authUrl;
                   }

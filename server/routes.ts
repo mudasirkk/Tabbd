@@ -12,11 +12,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   app.get("/api/square/oauth/authorize", async (req, res) => {
+    console.log('[Square OAuth] Starting authorization flow...');
     try {
+      console.log('[Square OAuth] Cleaning up expired states...');
       await storage.cleanupExpiredStates();
       
       const state = randomBytes(32).toString('hex');
+      console.log('[Square OAuth] Generated state token:', state.substring(0, 10) + '...');
+      
       await storage.saveOAuthState({ state });
+      console.log('[Square OAuth] State token saved to database');
       
       const params = new URLSearchParams({
         client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
@@ -27,18 +32,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const authUrl = `https://connect.squareup.com/oauth2/authorize?${params}`;
+      console.log('[Square OAuth] Generated authorization URL');
       res.json({ authUrl });
     } catch (error) {
-      console.error('Error generating OAuth URL:', error);
+      console.error('[Square OAuth] ERROR generating OAuth URL:', error);
       res.status(500).json({ error: 'Failed to generate OAuth URL' });
     }
   });
 
   // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
+    console.log('[Square OAuth Callback] Received callback from Square');
     const { code, state, error } = req.query;
     
+    console.log('[Square OAuth Callback] Query params - code:', code ? 'present' : 'missing', 'state:', state ? 'present' : 'missing', 'error:', error || 'none');
+    
     if (error) {
+      console.error('[Square OAuth Callback] ERROR from Square:', error);
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -53,6 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     if (!code || !state) {
+      console.error('[Square OAuth Callback] ERROR: Missing code or state parameter');
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -66,8 +77,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
+    console.log('[Square OAuth Callback] Validating state token...');
     const savedState = await storage.getOAuthState(state as string);
     if (!savedState) {
+      console.error('[Square OAuth Callback] ERROR: State validation failed - state not found or expired');
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -81,10 +94,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
+    console.log('[Square OAuth Callback] State validation successful, deleting state token...');
     await storage.deleteOAuthState(state as string);
     
     if (!process.env.SQUARE_APPLICATION_SECRET) {
-      console.error('SQUARE_APPLICATION_SECRET is not set');
+      console.error('[Square OAuth Callback] CRITICAL ERROR: SQUARE_APPLICATION_SECRET is not set');
       return res.status(500).send(`
         <!DOCTYPE html>
         <html>
@@ -98,7 +112,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
+    console.log('[Square OAuth Callback] SQUARE_APPLICATION_SECRET is present');
+    
     try {
+      console.log('[Square OAuth Callback] Exchanging authorization code for access token...');
       const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
         method: 'POST',
         headers: {
@@ -113,14 +130,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }),
       });
       
+      console.log('[Square OAuth Callback] Token exchange response status:', tokenResponse.status);
+      
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json();
-        console.error('Square token exchange failed:', errorData);
+        console.error('[Square OAuth Callback] ERROR: Token exchange failed with status', tokenResponse.status);
+        console.error('[Square OAuth Callback] ERROR details:', JSON.stringify(errorData, null, 2));
         throw new Error('Failed to exchange authorization code for access token');
       }
       
       const tokenData = await tokenResponse.json();
+      console.log('[Square OAuth Callback] Token exchange successful!');
+      console.log('[Square OAuth Callback] Received merchant_id:', tokenData.merchant_id);
+      console.log('[Square OAuth Callback] Access token received:', tokenData.access_token ? 'yes' : 'no');
+      console.log('[Square OAuth Callback] Refresh token received:', tokenData.refresh_token ? 'yes' : 'no');
       
+      console.log('[Square OAuth Callback] Saving tokens to database...');
       await storage.saveSquareToken({
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || null,
@@ -128,6 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         merchantId: tokenData.merchant_id,
       });
       
+      console.log('[Square OAuth Callback] Tokens saved successfully! Redirecting to app...');
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -140,7 +166,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </html>
       `);
     } catch (error) {
-      console.error('Error during Square OAuth callback:', error);
+      console.error('[Square OAuth Callback] FATAL ERROR during OAuth callback:', error);
+      if (error instanceof Error) {
+        console.error('[Square OAuth Callback] Error message:', error.message);
+        console.error('[Square OAuth Callback] Error stack:', error.stack);
+      }
       res.send(`
         <!DOCTYPE html>
         <html>

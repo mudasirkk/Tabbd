@@ -606,11 +606,18 @@ export default function Dashboard() {
                     });
                   } else {
                     try {
+                      console.log('[Frontend] Starting Square OAuth flow...');
                       const response = await fetch('/api/square/oauth/authorize');
+                      console.log('[Frontend] OAuth authorize response status:', response.status);
+                      
                       const data = await response.json();
+                      console.log('[Frontend] OAuth authorize response data:', data);
+                      
                       if (data.authUrl) {
+                        console.log('[Frontend] Redirecting to Square authorization page...');
                         window.location.href = data.authUrl;
                       } else {
+                        console.error('[Frontend] ERROR: No authUrl in response');
                         toast({
                           title: "Error",
                           description: "Failed to generate OAuth URL",
@@ -618,6 +625,7 @@ export default function Dashboard() {
                         });
                       }
                     } catch (error) {
+                      console.error('[Frontend] ERROR starting OAuth flow:', error);
                       toast({
                         title: "Error",
                         description: "Failed to start OAuth flow",

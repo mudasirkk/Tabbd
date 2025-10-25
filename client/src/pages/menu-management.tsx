@@ -51,6 +51,7 @@ export default function MenuManagement() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
+  const [squareItemsDialogOpen, setSquareItemsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [formData, setFormData] = useState({
     name: "",

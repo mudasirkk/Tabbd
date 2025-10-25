@@ -152,6 +152,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/square/catalog/items - Fetch menu items from Square
+  app.get("/api/square/catalog/items", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      
+      if (!token) {
+        return res.status(401).json({ error: "Square not connected" });
+      }
+
+      console.log("[Square Catalog] Fetching items...");
+
+      const response = await fetch(
+        "https://connect.squareup.com/v2/catalog/list?types=ITEM",
+        {
+          method: "GET",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[Square Catalog] Error response:", errorData);
+        return res.status(response.status).json({ error: "Failed to fetch Square catalog", details: errorData });
+      }
+
+      const data = await response.json();
+      console.log(`[Square Catalog] Fetched ${data.objects?.length || 0} items`);
+
+      res.json(data);
+    } catch (error) {
+      console.error("[Square Catalog] Error:", error);
+      res.status(500).json({ error: "Failed to fetch Square catalog items" });
+    }
+  });
+
   // Menu Items API Routes
 
   // GET /api/menu-items - Get all menu items

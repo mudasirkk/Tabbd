@@ -70,6 +70,11 @@ export default function MenuManagement() {
   const { data: squareStatus } = useQuery<{ connected: boolean; merchantId: string | null }>({
     queryKey: ["/api/square/status"],
   });
+
+  const { data: squareCatalog, isLoading: squareCatalogLoading, refetch: refetchSquareCatalog } = useQuery<any>({
+    queryKey: ["/api/square/catalog/items"],
+    enabled: false,
+  });
   
   useEffect(() => {
     if (error) {
@@ -260,10 +265,8 @@ export default function MenuManagement() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    toast({
-                      title: "Coming Soon",
-                      description: "Square menu sync will be available soon",
-                    });
+                    setSquareItemsDialogOpen(true);
+                    refetchSquareCatalog();
                   }}
                   data-testid="button-sync-square"
                 >
@@ -464,6 +467,66 @@ export default function MenuManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={squareItemsDialogOpen} onOpenChange={setSquareItemsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="dialog-square-items">
+          <DialogHeader>
+            <DialogTitle>Square Menu Items</DialogTitle>
+            <DialogDescription>
+              View menu items from your Square catalog
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {squareCatalogLoading ? (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading Square menu items...</p>
+              </div>
+            ) : squareCatalog?.objects && squareCatalog.objects.length > 0 ? (
+              <div className="space-y-3">
+                {squareCatalog.objects.map((item: any) => (
+                  <Card key={item.id} className="p-4">
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">{item.item_data.name}</h3>
+                      {item.item_data.description && (
+                        <p className="text-sm text-muted-foreground">{item.item_data.description}</p>
+                      )}
+                      {item.item_data.variations && item.item_data.variations.length > 0 && (
+                        <div className="space-y-1 mt-3">
+                          <p className="text-sm font-medium">Variations:</p>
+                          {item.item_data.variations.map((variation: any) => (
+                            <div key={variation.id} className="flex items-center justify-between text-sm pl-4">
+                              <span>{variation.item_variation_data.name}</span>
+                              <span className="font-mono font-semibold">
+                                ${(variation.item_variation_data.price_money?.amount / 100).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No items found in your Square catalog</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSquareItemsDialogOpen(false)}
+              data-testid="button-close-square-dialog"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

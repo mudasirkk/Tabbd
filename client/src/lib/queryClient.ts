@@ -20,12 +20,14 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
-  
+
+  console.log(`[API] ${method} ${url} ${res.status}`);
+
   // For DELETE requests with 204 No Content, return null
   if (res.status === 204) {
     return null;
   }
-  
+
   // Parse JSON response for other requests
   return await res.json();
 }

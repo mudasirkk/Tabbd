@@ -111,7 +111,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     } catch (error) {
       console.error("[Square OAuth] Callback error:", error);
-      res.status(500).send(error);
+      
+      // Return the error structure for debugging
+      if (error && typeof error === 'object') {
+        return res.status(500).json({
+          error: 'OAuth callback failed',
+          details: error,
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+      
+      res.status(500).send("Server error during OAuth callback");
     }
   });
 

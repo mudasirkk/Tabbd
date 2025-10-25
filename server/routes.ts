@@ -69,6 +69,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       const tokenData = await tokenResponse.json();
+      
+      console.log("[Square OAuth] Full token response:", JSON.stringify(tokenData, null, 2));
 
       if (tokenData.error) {
         console.error("[Square OAuth] Error exchanging code:", tokenData);
@@ -76,9 +78,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("[Square OAuth] Tokens received successfully");
+      console.log("[Square OAuth] Access token:", tokenData.access_token ? 'present' : 'MISSING');
       console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
 
-      // Save tokens (replace with your own logic)
+      if (!tokenData.access_token) {
+        console.error("[Square OAuth] ERROR: access_token is missing from response!");
+        return res.status(500).send("Invalid token response from Square");
+      }
+
+      // Save tokens to database
       await storage.saveSquareToken({
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || null,

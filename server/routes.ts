@@ -3,8 +3,37 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
+import { randomBytes } from "crypto";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  if (!process.env.SQUARE_APPLICATION_SECRET) {
+    console.error("CRITICAL: SQUARE_APPLICATION_SECRET environment variable is not set!");
+    console.error("Square OAuth will not work without this secret.");
+  }
+
+  app.get("/api/square/oauth/authorize", async (req, res) => {
+    try {
+      await storage.cleanupExpiredStates();
+      
+      const state = randomBytes(32).toString('hex');
+      await storage.saveOAuthState({ state });
+      
+      const params = new URLSearchParams({
+        client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
+        scope: 'MERCHANT_PROFILE_READ ORDERS_WRITE INVENTORY_READ ITEMS_READ',
+        state: state,
+        session: 'false',
+        redirect_uri: 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback',
+      });
+      
+      const authUrl = `https://connect.squareup.com/oauth2/authorize?${params}`;
+      res.json({ authUrl });
+    } catch (error) {
+      console.error('Error generating OAuth URL:', error);
+      res.status(500).json({ error: 'Failed to generate OAuth URL' });
+    }
+  });
+
   // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
     const { code, state, error } = req.query;
@@ -23,14 +52,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
-    if (!code) {
+    if (!code || !state) {
       return res.send(`
         <!DOCTYPE html>
         <html>
         <head><title>Square Authorization Failed</title></head>
         <body>
           <h1>Authorization Failed</h1>
-          <p>No authorization code received</p>
+          <p>Missing authorization code or state parameter</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
+    
+    const savedState = await storage.getOAuthState(state as string);
+    if (!savedState) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Authorization Failed</title></head>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>Invalid or expired state parameter. This may be a CSRF attack.</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
+    
+    await storage.deleteOAuthState(state as string);
+    
+    if (!process.env.SQUARE_APPLICATION_SECRET) {
+      console.error('SQUARE_APPLICATION_SECRET is not set');
+      return res.status(500).send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Configuration Error</title></head>
+        <body>
+          <h1>Configuration Error</h1>
+          <p>Square application secret is not configured. Please contact the administrator.</p>
           <a href="/">Return to App</a>
         </body>
         </html>

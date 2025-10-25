@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type MenuItem, type InsertMenuItem, type SquareToken, type InsertSquareToken } from "@shared/schema";
+import { type User, type InsertUser, type MenuItem, type InsertMenuItem, type SquareToken, type InsertSquareToken, type OAuthState, type InsertOAuthState } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 // modify the interface with any CRUD methods
@@ -20,12 +20,18 @@ export interface IStorage {
   // Square tokens
   saveSquareToken(token: InsertSquareToken): Promise<SquareToken>;
   getSquareToken(): Promise<SquareToken | undefined>;
+  
+  // OAuth states
+  saveOAuthState(state: InsertOAuthState): Promise<OAuthState>;
+  getOAuthState(state: string): Promise<OAuthState | undefined>;
+  deleteOAuthState(state: string): Promise<void>;
+  cleanupExpiredStates(): Promise<void>;
 }
 
 // Reference: blueprint:javascript_database
-import { users, menuItems, squareTokens } from "@shared/schema";
+import { users, menuItems, squareTokens, oauthStates } from "@shared/schema";
 import { db } from "./db";
-import { eq, count } from "drizzle-orm";
+import { eq, count, lt, sql as drizzleSql } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -127,6 +133,28 @@ export class DatabaseStorage implements IStorage {
   async getSquareToken(): Promise<SquareToken | undefined> {
     const [token] = await db.select().from(squareTokens).limit(1);
     return token || undefined;
+  }
+
+  async saveOAuthState(state: InsertOAuthState): Promise<OAuthState> {
+    const [created] = await db
+      .insert(oauthStates)
+      .values(state)
+      .returning();
+    return created;
+  }
+
+  async getOAuthState(state: string): Promise<OAuthState | undefined> {
+    const [result] = await db.select().from(oauthStates).where(eq(oauthStates.state, state));
+    return result || undefined;
+  }
+
+  async deleteOAuthState(state: string): Promise<void> {
+    await db.delete(oauthStates).where(eq(oauthStates.state, state));
+  }
+
+  async cleanupExpiredStates(): Promise<void> {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    await db.delete(oauthStates).where(lt(oauthStates.createdAt, fiveMinutesAgo));
   }
 }
 

@@ -101,6 +101,11 @@ function loadFromLocalStorage<T>(key: string, defaultValue: T): T {
   }
 }
 
+interface SquareStatus {
+  connected: boolean;
+  merchantId: string | null;
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -110,8 +115,13 @@ export default function Dashboard() {
     queryKey: ["/api/menu-items"],
     retry: 3,
     retryDelay: 1000,
-    staleTime: 0, // Always fetch fresh data
-    refetchOnMount: 'always', // Always refetch when component mounts
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+  
+  const { data: squareStatus } = useQuery<SquareStatus>({
+    queryKey: ["/api/square/status"],
+    staleTime: 30000,
   });
   
   const addCustomItemMutation = useMutation({
@@ -137,6 +147,18 @@ export default function Dashboard() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('square_connected') === 'true') {
+      toast({
+        title: "Square Connected",
+        description: "Your Square account has been successfully connected!",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/square/status"] });
+      window.history.replaceState({}, '', '/');
+    }
+  }, [toast]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -575,14 +597,38 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-4">
               <Button
-                variant="outline"
-                onClick={() => {
-                  const authUrl = 'https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-o0gFxi0LCTcztITa6DWf2g&scope=MERCHANT_PROFILE_READ%20ORDERS_WRITE%20INVENTORY_READ%20ITEMS_READ&state=82201dd8d83d23cc8a48caf52b&session=false&redirect_uri=https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
-                  window.location.href = authUrl;
+                variant={squareStatus?.connected ? "default" : "outline"}
+                onClick={async () => {
+                  if (squareStatus?.connected) {
+                    toast({
+                      title: "Square Connected",
+                      description: `Merchant ID: ${squareStatus.merchantId}`,
+                    });
+                  } else {
+                    try {
+                      const response = await fetch('/api/square/oauth/authorize');
+                      const data = await response.json();
+                      if (data.authUrl) {
+                        window.location.href = data.authUrl;
+                      } else {
+                        toast({
+                          title: "Error",
+                          description: "Failed to generate OAuth URL",
+                          variant: "destructive",
+                        });
+                      }
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to start OAuth flow",
+                        variant: "destructive",
+                      });
+                    }
+                  }
                 }}
                 data-testid="button-connect-square"
               >
-                Connect to Square
+                {squareStatus?.connected ? "✓ Connected to Square" : "Connect to Square"}
               </Button>
               <Button
                 variant="outline"

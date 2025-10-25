@@ -24,6 +24,11 @@ export const squareTokens = pgTable("square_tokens", {
   merchantId: text("merchant_id").notNull(),
 });
 
+export const oauthStates = pgTable("oauth_states", {
+  state: varchar("state").primaryKey(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -37,9 +42,13 @@ export const insertSquareTokenSchema = createInsertSchema(squareTokens).omit({
   id: true,
 });
 
+export const insertOAuthStateSchema = createInsertSchema(oauthStates);
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type MenuItem = typeof menuItems.$inferSelect;
 export type InsertMenuItem = z.infer<typeof insertMenuItemSchema>;
 export type SquareToken = typeof squareTokens.$inferSelect;
 export type InsertSquareToken = z.infer<typeof insertSquareTokenSchema>;
+export type OAuthState = typeof oauthStates.$inferSelect;
+export type InsertOAuthState = z.infer<typeof insertOAuthStateSchema>;

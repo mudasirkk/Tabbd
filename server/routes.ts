@@ -3,38 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
-import { SquareClient, SquareEnvironment } from "square";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize Square client
-  const squareClient = new SquareClient({
-    token: process.env.SQUARE_ACCESS_TOKEN,
-    environment: SquareEnvironment.Sandbox,
-  });
-
-  // GET /api/square/catalog/items - Fetch items from Square Catalog
-  app.get("/api/square/catalog/items", async (req, res) => {
-    try {
-      if (!process.env.SQUARE_ACCESS_TOKEN) {
-        return res.status(401).json({ error: "Square access token not configured" });
-      }
-
-      const response = await squareClient.catalog.list({
-        types: "ITEM",
-      });
-      
-      res.json({
-        items: response.data || [],
-      });
-    } catch (error) {
-      console.error("Error fetching Square catalog items:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch items from Square",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-
   // Square OAuth callback handler - GET endpoint for Square redirect
   app.get("/api/square/oauth/callback", async (req, res) => {
     try {

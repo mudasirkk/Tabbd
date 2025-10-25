@@ -598,40 +598,17 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <Button
                 variant={squareStatus?.connected ? "default" : "outline"}
-                onClick={async () => {
+                onClick={() => {
                   if (squareStatus?.connected) {
                     toast({
                       title: "Square Connected",
                       description: `Merchant ID: ${squareStatus.merchantId}`,
                     });
                   } else {
-                    try {
-                      console.log('[Frontend] Starting Square OAuth flow...');
-                      const response = await fetch('/api/square/oauth/authorize');
-                      console.log('[Frontend] OAuth authorize response status:', response.status);
-                      
-                      const data = await response.json();
-                      console.log('[Frontend] OAuth authorize response data:', data);
-                      
-                      if (data.authUrl) {
-                        console.log('[Frontend] Redirecting to Square authorization page...');
-                        window.location.href = data.authUrl;
-                      } else {
-                        console.error('[Frontend] ERROR: No authUrl in response');
-                        toast({
-                          title: "Error",
-                          description: "Failed to generate OAuth URL",
-                          variant: "destructive",
-                        });
-                      }
-                    } catch (error) {
-                      console.error('[Frontend] ERROR starting OAuth flow:', error);
-                      toast({
-                        title: "Error",
-                        description: "Failed to start OAuth flow",
-                        variant: "destructive",
-                      });
-                    }
+                    console.log('[Frontend] Redirecting to Square OAuth...');
+                    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-o0gFxi0LCTcztITa6DWf2g&scope=MERCHANT_PROFILE_READ+ORDERS_WRITE+INVENTORY_READ+ITEMS_READ&session=false&redirect_uri=${encodeURIComponent(window.location.origin + '/api/square/oauth/callback')}`;
+                    console.log('[Frontend] Auth URL:', authUrl);
+                    window.location.href = authUrl;
                   }
                 }}
                 data-testid="button-connect-square"

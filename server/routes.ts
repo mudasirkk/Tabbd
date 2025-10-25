@@ -11,41 +11,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("Square OAuth will not work without this secret.");
   }
 
-  app.get("/api/square/oauth/authorize", async (req, res) => {
-    console.log('[Square OAuth] Starting authorization flow...');
-    try {
-      console.log('[Square OAuth] Cleaning up expired states...');
-      await storage.cleanupExpiredStates();
-      
-      const state = randomBytes(32).toString('hex');
-      console.log('[Square OAuth] Generated state token:', state.substring(0, 10) + '...');
-      
-      await storage.saveOAuthState({ state });
-      console.log('[Square OAuth] State token saved to database');
-      
-      const params = new URLSearchParams({
-        client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
-        scope: 'MERCHANT_PROFILE_READ ORDERS_WRITE INVENTORY_READ ITEMS_READ',
-        state: state,
-        session: 'false',
-        redirect_uri: 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback',
-      });
-      
-      const authUrl = `https://connect.squareup.com/oauth2/authorize?${params}`;
-      console.log('[Square OAuth] Generated authorization URL');
-      res.json({ authUrl });
-    } catch (error) {
-      console.error('[Square OAuth] ERROR generating OAuth URL:', error);
-      res.status(500).json({ error: 'Failed to generate OAuth URL' });
-    }
-  });
-
-  // Square OAuth callback
+  // Square OAuth callback - simplified
   app.get("/api/square/oauth/callback", async (req, res) => {
     console.log('[Square OAuth Callback] Received callback from Square');
-    const { code, state, error } = req.query;
+    const { code, error } = req.query;
     
-    console.log('[Square OAuth Callback] Query params - code:', code ? 'present' : 'missing', 'state:', state ? 'present' : 'missing', 'error:', error || 'none');
+    console.log('[Square OAuth Callback] Code:', code ? 'present' : 'missing', 'Error:', error || 'none');
     
     if (error) {
       console.error('[Square OAuth Callback] ERROR from Square:', error);
@@ -62,40 +33,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
-    if (!code || !state) {
-      console.error('[Square OAuth Callback] ERROR: Missing code or state parameter');
+    if (!code) {
+      console.error('[Square OAuth Callback] ERROR: Missing authorization code');
       return res.send(`
         <!DOCTYPE html>
         <html>
         <head><title>Square Authorization Failed</title></head>
         <body>
           <h1>Authorization Failed</h1>
-          <p>Missing authorization code or state parameter</p>
+          <p>No authorization code received</p>
           <a href="/">Return to App</a>
         </body>
         </html>
       `);
     }
-    
-    console.log('[Square OAuth Callback] Validating state token...');
-    const savedState = await storage.getOAuthState(state as string);
-    if (!savedState) {
-      console.error('[Square OAuth Callback] ERROR: State validation failed - state not found or expired');
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Authorization Failed</title></head>
-        <body>
-          <h1>Authorization Failed</h1>
-          <p>Invalid or expired state parameter. This may be a CSRF attack.</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
-    }
-    
-    console.log('[Square OAuth Callback] State validation successful, deleting state token...');
-    await storage.deleteOAuthState(state as string);
     
     if (!process.env.SQUARE_APPLICATION_SECRET) {
       console.error('[Square OAuth Callback] CRITICAL ERROR: SQUARE_APPLICATION_SECRET is not set');

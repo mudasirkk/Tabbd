@@ -137,7 +137,6 @@ export default function Dashboard() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
-  const [isSquareConnected, setIsSquareConnected] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -155,33 +154,6 @@ export default function Dashboard() {
     }
   }, [stations]);
 
-  // Check if Square is connected on mount and handle OAuth callback
-  useEffect(() => {
-    const token = sessionStorage.getItem('square_access_token');
-    setIsSquareConnected(!!token);
-
-    // Handle OAuth success/error from callback
-    const oauthSuccess = sessionStorage.getItem('square_oauth_success');
-    const oauthError = sessionStorage.getItem('square_oauth_error');
-
-    if (oauthSuccess) {
-      setIsSquareConnected(true);
-      toast({
-        title: "Connected to Square!",
-        description: "Successfully authorized with Square POS.",
-      });
-      sessionStorage.removeItem('square_oauth_success');
-    }
-
-    if (oauthError) {
-      toast({
-        title: "Connection Failed",
-        description: oauthError,
-        variant: "destructive",
-      });
-      sessionStorage.removeItem('square_oauth_error');
-    }
-  }, [toast]);
   
   // Migration effect: Convert old items format to new format
   useEffect(() => {
@@ -602,43 +574,6 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button
-                variant={isSquareConnected ? "default" : "outline"}
-                onClick={() => {
-                  if (isSquareConnected) {
-                    sessionStorage.removeItem('square_access_token');
-                    sessionStorage.removeItem('square_merchant_id');
-                    setIsSquareConnected(false);
-                    toast({
-                      title: "Disconnected from Square",
-                      description: "You've been signed out of Square POS.",
-                    });
-                  } else {
-                    const squareAppId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
-                    console.log('Square App ID:', squareAppId);
-                    
-                    if (!squareAppId) {
-                      toast({
-                        title: "Configuration Error",
-                        description: "Square Application ID is not configured. Please check your environment variables.",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    
-                    const state = Math.random().toString(36).substring(2, 15);
-                    const scope = 'ITEMS_READ+PAYMENTS_READ';
-                    // Use sandbox URL since we're using sandbox credentials
-                    // Note: redirect_uri is optional - Square will use the default from app settings
-                    const authUrl = `https://connect.squareupsandbox.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&state=${state}`;
-                    console.log('Redirecting to:', authUrl);
-                    window.location.href = authUrl;
-                  }
-                }}
-                data-testid="button-connect-square"
-              >
-                {isSquareConnected ? "Connected to Square ✓" : "Connect to Square"}
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => setLocation("/menu")}

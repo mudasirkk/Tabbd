@@ -558,7 +558,7 @@ export default function Dashboard() {
       setSelectedStationId(null);
 
       toast({
-        title: "Payment Complete",
+        title: "Payment Sent to Reader",
         description: "Session ended successfully",
       });
     }

@@ -46,39 +46,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Square OAuth callback with PKCE
   app.get("/api/square/oauth/callback", async (req, res) => {
     console.log('[Square OAuth Callback] Received callback from Square');
-    const { code, state, error } = req.query;
-    
-    console.log('[Square OAuth Callback] Code:', code ? 'present' : 'missing', 'State:', state || 'none', 'Error:', error || 'none');
-    
-    if (error) {
-      console.error('[Square OAuth Callback] ERROR from Square:', error);
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Authorization Failed</title></head>
-        <body>
-          <h1>Authorization Failed</h1>
-          <p>Error: ${error}</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
-    }
-    
-    if (!code) {
-      console.error('[Square OAuth Callback] ERROR: Missing authorization code');
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Authorization Failed</title></head>
-        <body>
-          <h1>Authorization Failed</h1>
-          <p>No authorization code received</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
-    }
     
     const cookies = req.headers.cookie?.split(';').reduce((acc, cookie) => {
       const [key, value] = cookie.trim().split('=');
@@ -86,130 +53,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return acc;
     }, {} as Record<string, string>) || {};
     
-    const codeVerifier = cookies['square-code-verifier'];
-    const savedState = cookies['square-state'];
-    
-    console.log('[Square OAuth Callback] Code verifier from cookie:', codeVerifier ? 'present' : 'missing');
-    console.log('[Square OAuth Callback] Saved state from cookie:', savedState ? 'present' : 'missing');
-    
-    if (!codeVerifier) {
-      console.error('[Square OAuth Callback] ERROR: Missing code verifier cookie');
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Authorization Failed</title></head>
-        <body>
-          <h1>Authorization Failed</h1>
-          <p>Missing code verifier. Please try again.</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
+    // Verify the state to protect against cross-site request forgery
+    if (cookies['square-state'] !== req.query['state']) {
+      console.error('[Square OAuth Callback] CSRF failed - state mismatch');
+      return res.status(403).json({ error: 'CSRF failed' });
     }
     
-    if (state !== savedState) {
-      console.error('[Square OAuth Callback] ERROR: State mismatch');
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Authorization Failed</title></head>
-        <body>
-          <h1>Authorization Failed</h1>
-          <p>State verification failed. This may be a security issue.</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
-    }
-    
-    console.log('[Square OAuth Callback] State verified successfully');
-    
-    if (!process.env.SQUARE_APPLICATION_SECRET) {
-      console.error('[Square OAuth Callback] CRITICAL ERROR: SQUARE_APPLICATION_SECRET is not set');
-      return res.status(500).send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Configuration Error</title></head>
-        <body>
-          <h1>Configuration Error</h1>
-          <p>Square application secret is not configured. Please contact the administrator.</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
-    }
-    
-    try {
-      console.log('[Square OAuth Callback] Exchanging authorization code for access token with PKCE...');
-      const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Square-Version': '2024-10-17',
-        },
-        body: JSON.stringify({
-          client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
-          client_secret: process.env.SQUARE_APPLICATION_SECRET,
-          code: code,
-          code_verifier: codeVerifier,
-          grant_type: 'authorization_code',
-        }),
-      });
+    // Check if there was an error from Square
+    if (req.query['error']) {
+      console.error('[Square OAuth Callback] ERROR from Square:', req.query['error']);
       
-      console.log('[Square OAuth Callback] Token exchange response status:', tokenResponse.status);
-      
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        console.error('[Square OAuth Callback] ERROR: Token exchange failed with status', tokenResponse.status);
-        console.error('[Square OAuth Callback] ERROR details:', JSON.stringify(errorData, null, 2));
-        throw new Error('Failed to exchange authorization code for access token');
+      // Check to see if the seller clicked the 'deny' button
+      if (req.query['error'] === 'access_denied' && req.query['error_description'] === 'user_denied') {
+        console.log('[Square OAuth Callback] User denied authorization');
+        return res.redirect('/?square_denied=true');
       }
       
-      const tokenData = await tokenResponse.json();
-      console.log('[Square OAuth Callback] Token exchange successful!');
-      console.log('[Square OAuth Callback] Received merchant_id:', tokenData.merchant_id);
-      console.log('[Square OAuth Callback] Access token received:', tokenData.access_token ? 'yes' : 'no');
-      console.log('[Square OAuth Callback] Refresh token received:', tokenData.refresh_token ? 'yes' : 'no');
-      
-      console.log('[Square OAuth Callback] Saving tokens to database...');
-      await storage.saveSquareToken({
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
-        merchantId: tokenData.merchant_id,
+      // Display the error and description for all other errors
+      return res.status(400).json({ 
+        error: `${req.query['error']}: ${req.query['error_description']}` 
       });
+    }
+    
+    // When the response_type is "code", the seller clicked Allow
+    if (req.query['response_type'] === 'code') {
+      const code = req.query['code'];
+      const codeVerifier = cookies['square-code-verifier'];
       
-      console.log('[Square OAuth Callback] Tokens saved successfully! Clearing cookies and redirecting...');
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Connected</title></head>
-        <body>
-          <script>
-            document.cookie = 'square-code-verifier=; Max-Age=0';
-            document.cookie = 'square-state=; Max-Age=0';
-            window.location.href = '/?square_connected=true';
-          </script>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error('[Square OAuth Callback] FATAL ERROR during OAuth callback:', error);
-      if (error instanceof Error) {
-        console.error('[Square OAuth Callback] Error message:', error.message);
-        console.error('[Square OAuth Callback] Error stack:', error.stack);
+      console.log('[Square OAuth Callback] Code:', code ? 'present' : 'missing');
+      console.log('[Square OAuth Callback] Code verifier:', codeVerifier ? 'present' : 'missing');
+      
+      if (!code || typeof code !== 'string') {
+        console.error('[Square OAuth Callback] ERROR: Invalid code');
+        return res.status(400).json({ error: 'Invalid authorization code' });
       }
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Square Authorization Failed</title></head>
-        <body>
-          <h1>Authorization Failed</h1>
-          <p>There was an error connecting to Square. Please try again.</p>
-          <a href="/">Return to App</a>
-        </body>
-        </html>
-      `);
+      
+      if (!codeVerifier) {
+        console.error('[Square OAuth Callback] ERROR: Missing code verifier');
+        return res.status(400).json({ error: 'Missing code verifier' });
+      }
+      
+      if (!process.env.SQUARE_APPLICATION_SECRET) {
+        console.error('[Square OAuth Callback] CRITICAL ERROR: SQUARE_APPLICATION_SECRET is not set');
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
+      
+      try {
+        console.log('[Square OAuth Callback] Exchanging authorization code for access token with PKCE...');
+        
+        // API call to obtain token
+        const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Square-Version': '2024-10-17',
+          },
+          body: JSON.stringify({
+            client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
+            client_secret: process.env.SQUARE_APPLICATION_SECRET,
+            code: code,
+            code_verifier: codeVerifier,
+            grant_type: 'authorization_code',
+          }),
+        });
+        
+        console.log('[Square OAuth Callback] Token exchange response status:', tokenResponse.status);
+        
+        if (!tokenResponse.ok) {
+          const errorData = await tokenResponse.json();
+          console.error('[Square OAuth Callback] ERROR: Token exchange failed');
+          console.error('[Square OAuth Callback] ERROR details:', JSON.stringify(errorData, null, 2));
+          throw new Error('Failed to obtain token');
+        }
+        
+        const result = await tokenResponse.json();
+        
+        // Extract the returned tokens and merchant info
+        const {
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_at: expiresAt,
+          merchant_id: merchantId
+        } = result;
+        
+        console.log('[Square OAuth Callback] Token exchange successful!');
+        console.log('[Square OAuth Callback] Merchant ID:', merchantId);
+        console.log('[Square OAuth Callback] Access token received:', accessToken ? 'yes' : 'no');
+        console.log('[Square OAuth Callback] Refresh token received:', refreshToken ? 'yes' : 'no');
+        
+        // Update the database with the authorized Square data
+        console.log('[Square OAuth Callback] Saving tokens to database...');
+        await storage.saveSquareToken({
+          accessToken,
+          refreshToken: refreshToken || null,
+          expiresAt: expiresAt ? new Date(expiresAt) : null,
+          merchantId,
+        });
+        
+        console.log('[Square OAuth Callback] Tokens saved successfully! Clearing cookies and redirecting...');
+        
+        // Clear cookies and redirect to dashboard
+        res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Square Connected</title></head>
+          <body>
+            <script>
+              document.cookie = 'square-code-verifier=; Max-Age=0; path=/';
+              document.cookie = 'square-state=; Max-Age=0; path=/';
+              window.location.href = '/?square_connected=true';
+            </script>
+          </body>
+          </html>
+        `);
+      } catch (error) {
+        console.error('[Square OAuth Callback] FATAL ERROR during token exchange:', error);
+        if (error instanceof Error) {
+          console.error('[Square OAuth Callback] Error message:', error.message);
+          console.error('[Square OAuth Callback] Error stack:', error.stack);
+        }
+        return res.status(500).json({ error: 'Failed to complete authorization' });
+      }
+    } else {
+      console.error('[Square OAuth Callback] Invalid response_type');
+      return res.status(400).json({ error: 'Bad request' });
     }
   });
 

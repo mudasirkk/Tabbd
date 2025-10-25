@@ -152,6 +152,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/square/locations - Fetch Square locations
+  app.get("/api/square/locations", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      
+      if (!token) {
+        return res.status(401).json({ error: "Square not connected" });
+      }
+
+      console.log("[Square Locations] Fetching locations...");
+
+      const response = await fetch(
+        "https://connect.squareup.com/v2/locations",
+        {
+          method: "GET",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[Square Locations] Error response:", errorData);
+        return res.status(response.status).json({ error: "Failed to fetch Square locations", details: errorData });
+      }
+
+      const data = await response.json();
+      console.log(`[Square Locations] Fetched ${data.locations?.length || 0} locations`);
+
+      res.json(data);
+    } catch (error) {
+      console.error("[Square Locations] Error:", error);
+      res.status(500).json({ error: "Failed to fetch Square locations" });
+    }
+  });
+
   // GET /api/square/catalog/items - Fetch menu items from Square
   app.get("/api/square/catalog/items", async (req, res) => {
     try {
@@ -196,6 +235,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Square Catalog] Error:", error);
       res.status(500).json({ error: "Failed to fetch Square catalog items" });
+    }
+  });
+
+  // POST /api/square/orders/create - Create an order in Square
+  app.post("/api/square/orders/create", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      
+      if (!token) {
+        return res.status(401).json({ error: "Square not connected" });
+      }
+
+      const { locationId, stationName, timeElapsed, timeCharge, items, pricingTier, grandTotal } = req.body;
+
+      if (!locationId) {
+        return res.status(400).json({ error: "Location ID is required" });
+      }
+
+      console.log("[Square Orders] Creating order...", {
+        stationName,
+        timeElapsed,
+        grandTotal,
+        itemsCount: items?.length || 0
+      });
+
+      // Generate unique idempotency key
+      const idempotencyKey = randomBytes(32).toString("hex");
+
+      // Build line items array
+      const lineItems: any[] = [];
+
+      // Add time charge as a line item
+      if (timeCharge > 0) {
+        const hours = (timeElapsed / 3600).toFixed(2);
+        const tierLabel = pricingTier === "solo" ? "Solo" : "Group";
+        lineItems.push({
+          name: `${stationName} - ${tierLabel} Time`,
+          note: `Duration: ${hours} hours`,
+          quantity: "1",
+          base_price_money: {
+            amount: Math.round(timeCharge * 100), // Convert to cents
+            currency: "USD"
+          }
+        });
+      }
+
+      // Add purchased items
+      if (items && items.length > 0) {
+        items.forEach((item: any) => {
+          lineItems.push({
+            name: item.name,
+            quantity: item.quantity.toString(),
+            base_price_money: {
+              amount: Math.round(item.price * 100), // Convert to cents
+              currency: "USD"
+            }
+          });
+        });
+      }
+
+      const orderData = {
+        idempotency_key: idempotencyKey,
+        order: {
+          location_id: locationId,
+          line_items: lineItems,
+          state: "OPEN",
+          metadata: {
+            station_name: stationName,
+            pricing_tier: pricingTier || "group",
+            time_elapsed_seconds: timeElapsed?.toString() || "0"
+          }
+        }
+      };
+
+      console.log("[Square Orders] Order payload:", JSON.stringify(orderData, null, 2));
+
+      const response = await fetch(
+        "https://connect.squareup.com/v2/orders",
+        {
+          method: "POST",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(orderData)
+        }
+      );
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        console.error("[Square Orders] Error response:", responseData);
+        return res.status(response.status).json({ 
+          error: "Failed to create Square order", 
+          details: responseData 
+        });
+      }
+
+      console.log("[Square Orders] Order created successfully:", responseData.order?.id);
+
+      res.json(responseData);
+    } catch (error) {
+      console.error("[Square Orders] Error:", error);
+      res.status(500).json({ error: "Failed to create Square order" });
     }
   });
 

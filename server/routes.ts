@@ -353,9 +353,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const orderId = createData.order?.id;
-      console.log("[Square Orders] Scheduled order created successfully:", orderId);
+      console.log("[Square Orders] Scheduled order created:", orderId);
 
-      res.json(createData);
+      // Step 2: Mark order as paid so it shows in Square Dashboard
+      const payIdempotencyKey = randomBytes(32).toString("hex");
+      const payOrderData = {
+        idempotency_key: payIdempotencyKey,
+        order_version: createData.order?.version
+      };
+
+      console.log("[Square Orders] Marking order as paid...");
+
+      const payResponse = await fetch(
+        `https://connect.squareup.com/v2/orders/${orderId}/pay`,
+        {
+          method: "POST",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payOrderData)
+        }
+      );
+
+      const payData = await payResponse.json();
+
+      if (!payResponse.ok) {
+        console.error("[Square Orders] Error paying order:", payData);
+        return res.status(payResponse.status).json({ 
+          error: "Failed to mark order as paid", 
+          details: payData 
+        });
+      }
+
+      console.log("[Square Orders] Scheduled order paid and visible in dashboard:", orderId);
+
+      res.json(payData);
     } catch (error) {
       console.error("[Square Orders] Error:", error);
       res.status(500).json({ error: "Failed to create Square order" });

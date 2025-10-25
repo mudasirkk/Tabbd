@@ -17,7 +17,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/square/oauth/start", async (req, res) => {
     console.log("[Square OAuth] Generating state...");
 
-    const state = randomBytes(32).toString('hex');
+    const state = randomBytes(32).toString("hex");
 
     console.log("[Square OAuth] State:", state);
 
@@ -28,84 +28,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
-    try {
-      const { code, error, error_description } = req.query;
-
-      console.log("[Square OAuth] Callback received");
-
-      // Handle Square authorization denial
-      if (error) {
-        console.error(
-          "[Square OAuth] Error from Square:",
-          error_description || error,
-        );
-        return res
-          .status(400)
-          .send(`Authorization failed: ${error_description || error}`);
-      }
-
-      if (!code) {
-        console.error("[Square OAuth] Missing authorization code");
-        return res.status(400).send("Missing authorization code");
-      }
-
-      console.log("[Square OAuth] Exchanging code for token...");
-
-      // Exchange authorization code for access token
-      const tokenResponse = await fetch(
-        "https://connect.squareup.com/oauth2/token",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_id: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
-            client_secret: process.env.SQUARE_APPLICATION_SECRET,
-            code,
-            grant_type: "authorization_code",
-          }),
-        },
-      );
-
-      const tokenData = await tokenResponse.json();
-
-      if (tokenData.error) {
-        console.error("[Square OAuth] Error exchanging code:", tokenData);
-        return res.status(400).json(tokenData);
-      }
-
-      console.log("[Square OAuth] Tokens received successfully");
-      console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
-
-      // Save tokens (replace with your own logic)
-      await storage.saveSquareToken({
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
-        merchantId: tokenData.merchant_id,
-      });
-
-      console.log("[Square OAuth] Tokens saved to database");
-
-      // Redirect user to success page
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head><title>Square Connected</title></head>
-          <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-            <h2>✅ Square account connected successfully!</h2>
-            <script>
-              window.location.href = '/?square_connected=true';
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("[Square OAuth] Callback error:", error);
-      res.status(500).send("Server error during OAuth callback");
-    }
+    console.log("[Square OAuth] Callback received");
   });
+
+  // Square OAuth callback
+  // app.get("/api/square/oauth/callback", async (req, res) => {
+  //   try {
+  //     const { code, error, error_description } = req.query;
+
+  //     console.log("[Square OAuth] Callback received");
+
+  //     // Handle Square authorization denial
+  //     if (error) {
+  //       console.error(
+  //         "[Square OAuth] Error from Square:",
+  //         error_description || error,
+  //       );
+  //       return res
+  //         .status(400)
+  //         .send(`Authorization failed: ${error_description || error}`);
+  //     }
+
+  //     if (!code) {
+  //       console.error("[Square OAuth] Missing authorization code");
+  //       return res.status(400).send("Missing authorization code");
+  //     }
+
+  //     console.log("[Square OAuth] Exchanging code for token...");
+
+  //     // Exchange authorization code for access token
+  //     const tokenResponse = await fetch(
+  //       "https://connect.squareup.com/oauth2/token",
+  //       {
+  //         method: "POST",
+  //         headers: { "Content-Type": "application/json" },
+  //         body: JSON.stringify({
+  //           client_id: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
+  //           client_secret: process.env.SQUARE_APPLICATION_SECRET,
+  //           code,
+  //           grant_type: "authorization_code",
+  //         }),
+  //       },
+  //     );
+
+  //     const tokenData = await tokenResponse.json();
+
+  //     if (tokenData.error) {
+  //       console.error("[Square OAuth] Error exchanging code:", tokenData);
+  //       return res.status(400).json(tokenData);
+  //     }
+
+  //     console.log("[Square OAuth] Tokens received successfully");
+  //     console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
+
+  //     // Save tokens (replace with your own logic)
+  //     await storage.saveSquareToken({
+  //       accessToken: tokenData.access_token,
+  //       refreshToken: tokenData.refresh_token || null,
+  //       expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
+  //       merchantId: tokenData.merchant_id,
+  //     });
+
+  //     console.log("[Square OAuth] Tokens saved to database");
+
+  //     // Redirect user to success page
+  //     res.send(`
+  //       <!DOCTYPE html>
+  //       <html>
+  //         <head><title>Square Connected</title></head>
+  //         <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+  //           <h2>✅ Square account connected successfully!</h2>
+  //           <script>
+  //             window.location.href = '/?square_connected=true';
+  //           </script>
+  //         </body>
+  //       </html>
+  //     `);
+  //   } catch (error) {
+  //     console.error("[Square OAuth] Callback error:", error);
+  //     res.status(500).send("Server error during OAuth callback");
+  //   }
+  // });
 
   // GET /api/square/status - Check Square connection status
   app.get("/api/square/status", async (req, res) => {

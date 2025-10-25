@@ -203,6 +203,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/square/devices - Fetch paired Square Terminal devices
+  app.get("/api/square/devices", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      
+      if (!token) {
+        return res.status(401).json({ error: "Square not connected" });
+      }
+
+      console.log("[Square Devices] Fetching devices...");
+
+      const response = await fetch(
+        "https://connect.squareup.com/v2/devices/codes",
+        {
+          method: "GET",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[Square Devices] Error response:", errorData);
+        return res.status(response.status).json({ error: "Failed to fetch Square devices", details: errorData });
+      }
+
+      const data = await response.json();
+      console.log(`[Square Devices] Fetched ${data.device_codes?.length || 0} device codes`);
+
+      res.json(data);
+    } catch (error) {
+      console.error("[Square Devices] Error:", error);
+      res.status(500).json({ error: "Failed to fetch Square devices" });
+    }
+  });
+
+  // POST /api/square/terminals/checkouts - Send payment to Square Terminal reader
+  app.post("/api/square/terminals/checkouts", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      
+      if (!token) {
+        return res.status(401).json({ error: "Square not connected" });
+      }
+
+      const { deviceId, amount, referenceId, note } = req.body;
+
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID is required" });
+      }
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ error: "Valid amount is required" });
+      }
+
+      console.log("[Square Terminal] Creating terminal checkout...", {
+        deviceId,
+        amount,
+        referenceId
+      });
+
+      // Generate unique idempotency key
+      const idempotencyKey = randomBytes(32).toString("hex");
+
+      const checkoutData = {
+        idempotency_key: idempotencyKey,
+        checkout: {
+          amount_money: {
+            amount: Math.round(amount * 100), // Convert to cents
+            currency: "USD"
+          },
+          device_options: {
+            device_id: deviceId,
+            skip_receipt_screen: false,
+            tip_settings: {
+              allow_tipping: true
+            }
+          },
+          reference_id: referenceId,
+          note: note
+        }
+      };
+
+      console.log("[Square Terminal] Request data:", JSON.stringify(checkoutData, null, 2));
+
+      const response = await fetch(
+        "https://connect.squareup.com/v2/terminals/checkouts",
+        {
+          method: "POST",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(checkoutData)
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Square Terminal] Error creating checkout:", data);
+        return res.status(response.status).json({ 
+          error: "Failed to create terminal checkout", 
+          details: data 
+        });
+      }
+
+      console.log("[Square Terminal] Checkout created:", data.checkout?.id, "Status:", data.checkout?.status);
+
+      res.json(data);
+    } catch (error) {
+      console.error("[Square Terminal] Error:", error);
+      res.status(500).json({ error: "Failed to create terminal checkout" });
+    }
+  });
+
   // GET /api/square/catalog/items - Fetch menu items from Square
   app.get("/api/square/catalog/items", async (req, res) => {
     try {

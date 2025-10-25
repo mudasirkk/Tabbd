@@ -137,6 +137,7 @@ export default function Dashboard() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
+  const [isSquareConnected, setIsSquareConnected] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -153,6 +154,53 @@ export default function Dashboard() {
       console.error('Error saving stations to localStorage:', error);
     }
   }, [stations]);
+
+  // Check if Square is connected on mount
+  useEffect(() => {
+    const token = sessionStorage.getItem('square_access_token');
+    setIsSquareConnected(!!token);
+  }, []);
+
+  // Handle Square OAuth callback
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+
+      if (code) {
+        try {
+          const response = await apiRequest("POST", "/api/square/oauth/callback", {
+            code,
+            state,
+          });
+
+          if (response.access_token) {
+            sessionStorage.setItem('square_access_token', response.access_token);
+            sessionStorage.setItem('square_merchant_id', response.merchant_id);
+            setIsSquareConnected(true);
+            
+            toast({
+              title: "Connected to Square!",
+              description: "Successfully authorized with Square POS.",
+            });
+
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (error) {
+          console.error("Failed to exchange OAuth code:", error);
+          toast({
+            title: "Connection Failed",
+            description: "Could not connect to Square. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, [toast]);
   
   // Migration effect: Convert old items format to new format
   useEffect(() => {
@@ -574,18 +622,28 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-4">
               <Button
-                variant="outline"
+                variant={isSquareConnected ? "default" : "outline"}
                 onClick={() => {
-                  const squareAppId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
-                  const redirectUri = window.location.origin;
-                  const state = Math.random().toString(36).substring(2, 15);
-                  const scope = 'ITEMS_READ+PAYMENTS_READ';
-                  const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}`;
-                  window.location.href = authUrl;
+                  if (isSquareConnected) {
+                    sessionStorage.removeItem('square_access_token');
+                    sessionStorage.removeItem('square_merchant_id');
+                    setIsSquareConnected(false);
+                    toast({
+                      title: "Disconnected from Square",
+                      description: "You've been signed out of Square POS.",
+                    });
+                  } else {
+                    const squareAppId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
+                    const redirectUri = window.location.origin;
+                    const state = Math.random().toString(36).substring(2, 15);
+                    const scope = 'ITEMS_READ+PAYMENTS_READ';
+                    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}`;
+                    window.location.href = authUrl;
+                  }
                 }}
                 data-testid="button-connect-square"
               >
-                Connect to Square
+                {isSquareConnected ? "Connected to Square ✓" : "Connect to Square"}
               </Button>
               <Button
                 variant="outline"

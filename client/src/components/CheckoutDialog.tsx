@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, ShoppingBag, DollarSign, Users, User } from "lucide-react";
+import { Clock, ShoppingBag, DollarSign, Users, User, CreditCard } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,12 +12,26 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CheckoutItem {
   id: string;
   name: string;
   price: number;
   quantity: number;
+}
+
+interface SquareDevice {
+  id: string;
+  device_id: string;
+  name: string;
+  status: string;
 }
 
 interface CheckoutDialogProps {
@@ -28,7 +42,14 @@ interface CheckoutDialogProps {
   timeElapsed: number;
   timeCharge: number;
   items: CheckoutItem[];
-  onConfirmCheckout: (checkoutData: { pricingTier: "group" | "solo"; timeCharge: number; grandTotal: number }) => void;
+  devices: SquareDevice[];
+  squareConnected: boolean;
+  onConfirmCheckout: (checkoutData: { 
+    pricingTier: "group" | "solo"; 
+    timeCharge: number; 
+    grandTotal: number;
+    deviceId?: string;
+  }) => void;
 }
 
 export function CheckoutDialog({
@@ -39,16 +60,22 @@ export function CheckoutDialog({
   timeElapsed,
   timeCharge,
   items,
+  devices,
+  squareConnected,
   onConfirmCheckout,
 }: CheckoutDialogProps) {
   const [pricingTier, setPricingTier] = useState<"group" | "solo">("group");
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   
-  // Reset to group when dialog opens
+  // Reset to group and select first device when dialog opens
   useEffect(() => {
     if (open) {
       setPricingTier("group");
+      if (devices.length > 0) {
+        setSelectedDeviceId(devices[0].device_id);
+      }
     }
-  }, [open]);
+  }, [open, devices]);
   
   const isPoolOrFoosball = stationType === "pool" || stationType === "foosball";
   const hourlyRate = isPoolOrFoosball && pricingTier === "solo" ? 10 : 16;
@@ -127,6 +154,34 @@ export function CheckoutDialog({
                 </RadioGroup>
               </div>
             )}
+
+            {squareConnected && devices.length > 0 && (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Square Terminal Device
+                </Label>
+                <Select
+                  value={selectedDeviceId}
+                  onValueChange={setSelectedDeviceId}
+                >
+                  <SelectTrigger data-testid="select-device">
+                    <SelectValue placeholder="Select a terminal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devices.map((device) => (
+                      <SelectItem 
+                        key={device.id} 
+                        value={device.device_id}
+                        data-testid={`device-option-${device.id}`}
+                      >
+                        {device.name} ({device.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-3">
@@ -196,11 +251,13 @@ export function CheckoutDialog({
             onClick={() => onConfirmCheckout({ 
               pricingTier, 
               timeCharge: recalculatedTimeCharge,
-              grandTotal 
+              grandTotal,
+              deviceId: squareConnected && devices.length > 0 ? selectedDeviceId : undefined
             })}
             data-testid="button-confirm-checkout"
+            disabled={squareConnected && devices.length > 0 && !selectedDeviceId}
           >
-            Complete Payment
+            {squareConnected && devices.length > 0 ? "Send to Terminal" : "Complete Payment"}
           </Button>
         </div>
       </DialogContent>

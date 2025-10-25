@@ -129,6 +129,12 @@ export default function Dashboard() {
     enabled: !!squareStatus?.connected,
     staleTime: 60000,
   });
+
+  const { data: squareDevices, isLoading: devicesLoading } = useQuery<any>({
+    queryKey: ["/api/square/devices"],
+    enabled: !!squareStatus?.connected,
+    staleTime: 60000,
+  });
   
   const addCustomItemMutation = useMutation({
     mutationFn: async (data: { name: string; price: string; category: string }) => {
@@ -491,27 +497,71 @@ export default function Dashboard() {
     setCheckoutOpen(true);
   };
 
-  const handleConfirmCheckout = async (checkoutData: { pricingTier: "group" | "solo"; timeCharge: number; grandTotal: number }) => {
+  const handleConfirmCheckout = async (checkoutData: { 
+    pricingTier: "group" | "solo"; 
+    timeCharge: number; 
+    grandTotal: number;
+    deviceId?: string;
+  }) => {
     if (!selectedStationId) return;
 
     const station = stations.find((s) => s.id === selectedStationId);
     if (!station) return;
 
-    // End session locally
-    setStations((prev) =>
-      prev.map((s) =>
-        s.id === selectedStationId
-          ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
-          : s
-      )
-    );
-    setCheckoutOpen(false);
-    setSelectedStationId(null);
+    // If Square is connected and deviceId is provided, send to terminal
+    if (squareStatus?.connected && checkoutData.deviceId) {
+      try {
+        const timeElapsed = getTimeElapsed(station);
+        const hours = (timeElapsed / 3600).toFixed(2);
+        const tierLabel = checkoutData.pricingTier === "solo" ? "Solo" : "Group";
+        
+        await apiRequest("POST", "/api/square/terminals/checkouts", {
+          deviceId: checkoutData.deviceId,
+          amount: checkoutData.grandTotal,
+          referenceId: `${station.name}-${Date.now()}`,
+          note: `${station.name} - ${tierLabel} - ${hours}hrs`
+        });
 
-    toast({
-      title: "Payment Complete",
-      description: "Session ended successfully",
-    });
+        // End session after successful terminal request
+        setStations((prev) =>
+          prev.map((s) =>
+            s.id === selectedStationId
+              ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
+              : s
+          )
+        );
+        setCheckoutOpen(false);
+        setSelectedStationId(null);
+
+        toast({
+          title: "Sent to Terminal",
+          description: "Payment request sent to Square reader",
+        });
+      } catch (error) {
+        console.error("[Terminal Checkout] Error:", error);
+        toast({
+          title: "Terminal Error",
+          description: "Failed to send payment to terminal. Session remains active.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // No Square/terminal, just end session locally
+      setStations((prev) =>
+        prev.map((s) =>
+          s.id === selectedStationId
+            ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
+            : s
+        )
+      );
+      setCheckoutOpen(false);
+      setSelectedStationId(null);
+
+      toast({
+        title: "Payment Complete",
+        description: "Session ended successfully",
+      });
+    }
   };
 
   const handleTransferSession = (destinationStationId: string) => {
@@ -838,6 +888,8 @@ export default function Dashboard() {
             timeElapsed={getTimeElapsed(selectedStation)}
             timeCharge={getTimeCharge(selectedStation)}
             items={getSessionItems(selectedStation)}
+            devices={squareDevices?.device_codes || []}
+            squareConnected={!!squareStatus?.connected}
             onConfirmCheckout={handleConfirmCheckout}
           />
 

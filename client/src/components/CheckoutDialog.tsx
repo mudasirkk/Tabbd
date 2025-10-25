@@ -28,7 +28,7 @@ interface CheckoutDialogProps {
   timeElapsed: number;
   timeCharge: number;
   items: CheckoutItem[];
-  onConfirmCheckout: () => void;
+  onConfirmCheckout: (checkoutData: { pricingTier: "group" | "solo"; timeCharge: number; grandTotal: number }) => void;
 }
 
 export function CheckoutDialog({
@@ -193,7 +193,11 @@ export function CheckoutDialog({
           <Button
             className="w-full"
             size="lg"
-            onClick={onConfirmCheckout}
+            onClick={() => onConfirmCheckout({ 
+              pricingTier, 
+              timeCharge: recalculatedTimeCharge,
+              grandTotal 
+            })}
             data-testid="button-confirm-checkout"
           >
             Complete Payment

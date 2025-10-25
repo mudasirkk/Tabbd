@@ -119,9 +119,15 @@ export default function Dashboard() {
     refetchOnMount: 'always',
   });
   
-  const { data: squareStatus } = useQuery<SquareStatus>({
+  const { data: squareStatus, isLoading: squareStatusLoading } = useQuery<SquareStatus>({
     queryKey: ["/api/square/status"],
     staleTime: 30000,
+  });
+
+  const { data: squareLocations, isLoading: locationsLoading, error: locationsError } = useQuery<any>({
+    queryKey: ["/api/square/locations"],
+    enabled: !!squareStatus?.connected,
+    staleTime: 60000,
   });
   
   const addCustomItemMutation = useMutation({
@@ -485,8 +491,83 @@ export default function Dashboard() {
     setCheckoutOpen(true);
   };
 
-  const handleConfirmCheckout = () => {
-    if (selectedStationId) {
+  const handleConfirmCheckout = async (checkoutData: { pricingTier: "group" | "solo"; timeCharge: number; grandTotal: number }) => {
+    if (!selectedStationId) return;
+
+    const station = stations.find((s) => s.id === selectedStationId);
+    if (!station) return;
+
+    const timeElapsed = getTimeElapsed(station);
+
+    // Check if Square status is still loading
+    if (squareStatusLoading) {
+      toast({
+        title: "Loading Square Status",
+        description: "Please wait while checking Square connection...",
+      });
+      return;
+    }
+
+    // If Square is connected, require location to be loaded
+    if (squareStatus?.connected) {
+      if (locationsLoading) {
+        toast({
+          title: "Loading Location",
+          description: "Please wait while Square location loads...",
+        });
+        return;
+      }
+
+      if (locationsError || !squareLocations?.locations?.[0]?.id) {
+        toast({
+          title: "Square Location Error",
+          description: "Cannot send order to Square. Location not available. Session stays active.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Send order to Square (before clearing session)
+      try {
+        const orderData = {
+          locationId: squareLocations.locations[0].id,
+          stationName: station.name,
+          timeElapsed,
+          timeCharge: checkoutData.timeCharge,
+          items: station.items,
+          pricingTier: checkoutData.pricingTier,
+          grandTotal: checkoutData.grandTotal
+        };
+
+        console.log("[Square Order] Creating order:", orderData);
+
+        await apiRequest("POST", "/api/square/orders/create", orderData);
+
+        // Only end session after Square order succeeds
+        setStations((prev) =>
+          prev.map((s) =>
+            s.id === selectedStationId
+              ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
+              : s
+          )
+        );
+        setCheckoutOpen(false);
+        setSelectedStationId(null);
+
+        toast({
+          title: "Payment Complete",
+          description: "Session ended and order sent to Square",
+        });
+      } catch (error) {
+        console.error("[Square Order] Error creating order:", error);
+        toast({
+          title: "Square Sync Failed",
+          description: "Failed to send order to Square. Session is still active.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // No Square connection, just end session locally
       setStations((prev) =>
         prev.map((s) =>
           s.id === selectedStationId
@@ -496,6 +577,7 @@ export default function Dashboard() {
       );
       setCheckoutOpen(false);
       setSelectedStationId(null);
+
       toast({
         title: "Payment Complete",
         description: "Session ended successfully",

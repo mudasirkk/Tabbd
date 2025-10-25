@@ -290,7 +290,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             base_price_money: {
               amount: Math.round(item.price * 100), // Convert to cents
               currency: "USD"
-            }
+            },
+            note: item.itemId ? `Item ID: ${item.itemId}` : undefined
           });
         });
       }

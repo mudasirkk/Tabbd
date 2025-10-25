@@ -615,11 +615,23 @@ export default function Dashboard() {
                     });
                   } else {
                     const squareAppId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
+                    console.log('Square App ID:', squareAppId);
+                    
+                    if (!squareAppId) {
+                      toast({
+                        title: "Configuration Error",
+                        description: "Square Application ID is not configured. Please check your environment variables.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
                     const redirectUri = `${window.location.origin}/api/square/oauth/callback`;
                     const state = Math.random().toString(36).substring(2, 15);
                     const scope = 'ITEMS_READ+PAYMENTS_READ';
                     // Use sandbox URL since we're using sandbox credentials
                     const authUrl = `https://connect.squareupsandbox.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                    console.log('Redirecting to:', authUrl);
                     window.location.href = authUrl;
                   }
                 }}

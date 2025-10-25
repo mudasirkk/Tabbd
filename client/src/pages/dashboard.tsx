@@ -691,7 +691,7 @@ export default function Dashboard() {
                       
                       console.log('[Frontend] Received state:', data.state);
                       
-                      const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ';
+                      const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT';
                       const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
                       const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
                       

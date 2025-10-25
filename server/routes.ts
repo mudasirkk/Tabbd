@@ -94,6 +94,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/square/status - Check Square connection status
+  app.get("/api/square/status", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      res.json({ 
+        connected: !!token,
+        merchantId: token?.merchantId || null,
+      });
+    } catch (error) {
+      console.error("Error checking Square status:", error);
+      res.status(500).json({ error: "Failed to check Square status" });
+    }
+  });
+
   // Menu Items API Routes
   
   // GET /api/menu-items - Get all menu items

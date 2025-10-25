@@ -64,7 +64,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             client_secret: process.env.SQUARE_APPLICATION_SECRET,
             code,
             grant_type: "authorization_code",
-            redirect_uri: "https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback",
           }),
         },
       );
@@ -100,12 +99,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Save tokens to database
-      // await storage.saveSquareToken({
-      //   accessToken: tokenData.access_token,
-      //   refreshToken: tokenData.refresh_token || null,
-      //   expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
-      //   merchantId: tokenData.merchant_id,
-      // });
+      await storage.saveSquareToken({
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || null,
+        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
+        merchantId: tokenData.merchant_id,
+      });
 
       console.log("[Square OAuth] Tokens saved to database");
 

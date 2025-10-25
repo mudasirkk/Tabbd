@@ -578,7 +578,7 @@ export default function Dashboard() {
                 variant="outline"
                 onClick={() => {
                   const appId = 'sq0idp-o0gFxi0LCTcztITa6DWf2g';
-                  const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${appId}&scope=CUSTOMERS_WRITE+CUSTOMERS_READ&session=False&state=82201dd8d83d23cc8a48caf52b`;
+                  const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${appId}&scope=MERCHANT_PROFILE_READ+ORDERS_WRITE+INVENTORY_READ+ITEMS_READ&session=False&state=82201dd8d83d23cc8a48caf52b`;
                   window.location.href = authUrl;
                 }}
                 data-testid="button-connect-square"

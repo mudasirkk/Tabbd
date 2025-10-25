@@ -11,6 +11,7 @@ Rack Em Up is a real-time pool cafe management system designed for tracking cust
 - **Custom Start Time**: Ability to backdate session start time when staff forgets to start timer immediately (e.g., customer arrived at 7:00pm but timer started at 7:30pm)
 - **Pause/Resume Sessions**: Ability to pause active sessions, freezing the timer and charge, with options to resume or complete payment
 - **Menu Management**: Dedicated page for adding, editing, and deleting menu items organized by category (Food, Snacks, Dessert, etc.)
+- **Square Terminal Integration**: Send checkout payments directly to paired Square Terminal readers for card processing
 - **Persistent Sessions**: LocalStorage-based persistence ensures sessions survive page refreshes and browser switches, including paused state
 - **Real-time Tracking**: Live timers and automatic charge calculation for all active stations
 - **Mobile-optimized**: Touch-friendly interface designed for iPhone Safari and Chrome
@@ -108,11 +109,29 @@ Preferred communication style: Simple, everyday language.
 - Frontend converts to numbers for calculations using defensive parsing
 - Display uses parseFloat() with toFixed(2) for consistent formatting
 
+**Square Integration Features**
+- OAuth authentication with PAYMENTS_WRITE scope for Terminal API access
+- Import menu items from Square catalog with category grouping
+- List and select paired Square Terminal devices
+- Send checkout payments to physical Square readers via Terminal API
+- Device selection in checkout dialog when Square is connected
+- Automatic payment requests with station name, pricing tier, and duration notes
+
+**Square Terminal Checkout Flow**
+1. Connect Square account via OAuth (PAYMENTS_WRITE permission required)
+2. Pair Square Terminal device using Square Dashboard
+3. Start session and add items as normal in the app
+4. Click checkout - device selector appears if Square is connected
+5. Select paired Terminal device from dropdown
+6. Click "Send to Terminal" - payment request sent to physical reader
+7. Customer completes payment on Terminal device
+8. Session ends after successful terminal API request
+
 **Future Extensions**
-- Stations: ID, name, type (pool/gaming/foosball), hourly rate
-- Sessions: ID, station ID, start time, end time, customer name
-- Session items: Session ID, menu item ID, quantity
-- Transactions: Session ID, total amount, payment method, timestamp
+- Database tables for stations, sessions, session items, and transactions
+- Webhook integration for real-time Terminal payment status updates (COMPLETED/CANCELED)
+- Historical session records and reporting
+- Multi-location support with location-based pricing
 
 ### External Dependencies
 

@@ -576,6 +576,43 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <Button
                 variant="outline"
+                onClick={async () => {
+                  try {
+                    // Fetch auth values from backend
+                    const response = await fetch('/api/square/auth-values');
+                    const {
+                      squareCodeChallenge,
+                      squareCodeVerifier,
+                      squareState,
+                      baseURL,
+                      appId
+                    } = await response.json();
+
+                    // Store code verifier and state in cookies
+                    document.cookie = `square-code-verifier=${squareCodeVerifier}; path=/; max-age=600`;
+                    document.cookie = `square-state=${squareState}; path=/; max-age=600`;
+
+                    // Scopes needed for the application
+                    const scopes = [
+                      'MERCHANT_PROFILE_READ',
+                      'ORDERS_WRITE',
+                      'INVENTORY_READ',
+                      'ITEMS_READ',
+                      'PAYMENTS_READ'
+                    ];
+
+                    // Redirect to Square OAuth page
+                    const authUrl = `${baseURL}oauth2/authorize?client_id=${appId}&session=false&scope=${scopes.join('+')}&state=${squareState}&code_challenge=${squareCodeChallenge}`;
+                    window.location.href = authUrl;
+                  } catch (error) {
+                    console.error('Error initiating OAuth:', error);
+                    toast({
+                      title: "Connection Failed",
+                      description: "Failed to connect to Square. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
                 data-testid="button-connect-square"
               >
                 Connect to Square

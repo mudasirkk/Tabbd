@@ -7,22 +7,91 @@ import { z } from "zod";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
-    const { code, state } = req.query;
+    const { code, state, error } = req.query;
     
-    // Redirect back to app with the authorization code
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>Square Authorization</title></head>
-      <body>
-        <script>
-          sessionStorage.setItem('square_auth_code', '${code}');
-          sessionStorage.setItem('square_state', '${state}');
-          window.location.href = '/';
-        </script>
-      </body>
-      </html>
-    `);
+    if (error) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Authorization Failed</title></head>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>Error: ${error}</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
+    
+    if (!code) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Authorization Failed</title></head>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>No authorization code received</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
+    
+    try {
+      const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Square-Version': '2024-10-17',
+        },
+        body: JSON.stringify({
+          client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
+          client_secret: process.env.SQUARE_APPLICATION_SECRET,
+          code: code,
+          grant_type: 'authorization_code',
+        }),
+      });
+      
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json();
+        console.error('Square token exchange failed:', errorData);
+        throw new Error('Failed to exchange authorization code for access token');
+      }
+      
+      const tokenData = await tokenResponse.json();
+      
+      await storage.saveSquareToken({
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || null,
+        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
+        merchantId: tokenData.merchant_id,
+      });
+      
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Connected</title></head>
+        <body>
+          <script>
+            window.location.href = '/?square_connected=true';
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('Error during Square OAuth callback:', error);
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Authorization Failed</title></head>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>There was an error connecting to Square. Please try again.</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
   });
 
   // Menu Items API Routes

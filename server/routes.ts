@@ -15,7 +15,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Exchange authorization code for access token
-      const tokenResponse = await fetch("https://connect.squareup.com/oauth2/token", {
+      // Use sandbox URL since we're using sandbox credentials
+      const tokenResponse = await fetch("https://connect.squareupsandbox.com/oauth2/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

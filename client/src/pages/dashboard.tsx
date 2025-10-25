@@ -618,7 +618,8 @@ export default function Dashboard() {
                     const redirectUri = `${window.location.origin}/api/square/oauth/callback`;
                     const state = Math.random().toString(36).substring(2, 15);
                     const scope = 'ITEMS_READ+PAYMENTS_READ';
-                    const authUrl = `https://connect.squareup.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                    // Use sandbox URL since we're using sandbox credentials
+                    const authUrl = `https://connect.squareupsandbox.com/oauth2/authorize?client_id=${squareAppId}&scope=${scope}&session=false&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
                     window.location.href = authUrl;
                   }
                 }}

@@ -77,6 +77,12 @@ export default function MenuManagement() {
     queryKey: ["/api/square/catalog/items"],
     enabled: false,
   });
+
+  useEffect(() => {
+    if (squareCatalog) {
+      console.log("Square Catalog Import Data Structure:", squareCatalog);
+    }
+  }, [squareCatalog]);
   
   useEffect(() => {
     if (error) {

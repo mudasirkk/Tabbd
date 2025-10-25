@@ -59,7 +59,9 @@ export function AddItemsDialog({
     return acc;
   }, {} as { [key: string]: MenuItem[] });
 
-  const categories = Object.keys(groupedItems).sort();
+  const categories = Object.keys(groupedItems)
+    .filter(category => category.toUpperCase() !== "GAMING")
+    .sort();
 
   const handleAddCustomItem = () => {
     const price = parseFloat(customItemPrice);

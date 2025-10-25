@@ -600,77 +600,47 @@ export default function MenuManagement() {
                     {selectedSquareItems.size} selected
                   </span>
                 </div>
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
-                  {(() => {
-                    // Build category map
-                    const categoryMap = new Map<string, string>();
-                    squareCatalog.objects?.forEach((obj: any) => {
-                      if (obj.type === "CATEGORY") {
-                        categoryMap.set(obj.id, obj.category_data.name);
-                      }
-                    });
-
-                    // Group items by category
-                    const itemsByCategory: Record<string, any[]> = {};
-                    squareCatalog.objects?.forEach((obj: any) => {
-                      if (obj.type === "ITEM") {
-                        const categoryId = obj.item_data.category_id;
-                        const categoryName = categoryId ? categoryMap.get(categoryId) || "Uncategorized" : "Uncategorized";
-                        if (!itemsByCategory[categoryName]) {
-                          itemsByCategory[categoryName] = [];
-                        }
-                        itemsByCategory[categoryName].push(obj);
-                      }
-                    });
-
-                    return Object.entries(itemsByCategory).map(([categoryName, items]) => (
-                      <div key={categoryName}>
-                        <h3 className="text-lg font-semibold text-primary mb-3">{categoryName}</h3>
-                        <div className="space-y-3">
-                          {items.map((item: any) => (
-                            <Card key={item.id} className="p-4">
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-base">{item.item_data.name}</h4>
-                                {item.item_data.variations && item.item_data.variations.length > 0 && (
-                                  <div className="space-y-2">
-                                    {item.item_data.variations.map((variation: any) => {
-                                      const variationKey = `${item.id}-${variation.id}`;
-                                      const isSelected = selectedSquareItems.has(variationKey);
-                                      const price = variation.item_variation_data.price_money?.amount || 0;
-                                      const variationName = variation.item_variation_data.name;
-                                      
-                                      return (
-                                        <div
-                                          key={variation.id}
-                                          className="flex items-center justify-between p-3 rounded-md border hover-elevate cursor-pointer"
-                                          onClick={() => toggleSquareItem(item.id, variation.id)}
-                                          data-testid={`square-item-${variationKey}`}
-                                        >
-                                          <div className="flex items-center gap-3 flex-1">
-                                            <Checkbox
-                                              checked={isSelected}
-                                              onCheckedChange={() => toggleSquareItem(item.id, variation.id)}
-                                              data-testid={`checkbox-${variationKey}`}
-                                            />
-                                            <div className="flex-1">
-                                              <p className="font-medium">{variationName}</p>
-                                            </div>
-                                          </div>
-                                          <span className="font-mono font-bold text-primary">
-                                            ${(price / 100).toFixed(2)}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                  {squareCatalog.objects.map((item: any) => (
+                    <Card key={item.id} className="p-4">
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-base">{item.item_data.name}</h3>
+                        {item.item_data.variations && item.item_data.variations.length > 0 && (
+                          <div className="space-y-2">
+                            {item.item_data.variations.map((variation: any) => {
+                              const variationKey = `${item.id}-${variation.id}`;
+                              const isSelected = selectedSquareItems.has(variationKey);
+                              const price = variation.item_variation_data.price_money?.amount || 0;
+                              const variationName = variation.item_variation_data.name;
+                              
+                              return (
+                                <div
+                                  key={variation.id}
+                                  className="flex items-center justify-between p-3 rounded-md border hover-elevate cursor-pointer"
+                                  onClick={() => toggleSquareItem(item.id, variation.id)}
+                                  data-testid={`square-item-${variationKey}`}
+                                >
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => toggleSquareItem(item.id, variation.id)}
+                                      data-testid={`checkbox-${variationKey}`}
+                                    />
+                                    <div className="flex-1">
+                                      <p className="font-medium">{variationName}</p>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            </Card>
-                          ))}
-                        </div>
+                                  <span className="font-mono font-bold text-primary">
+                                    ${(price / 100).toFixed(2)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    ));
-                  })()}
+                    </Card>
+                  ))}
                 </div>
               </>
             ) : (

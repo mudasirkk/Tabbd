@@ -339,41 +339,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const orderId = createData.order?.id;
       console.log("[Square Orders] Order created:", orderId);
 
-      // Step 2: Mark order as paid (PayOrder endpoint for cash/already collected payments)
-      const payIdempotencyKey = randomBytes(32).toString("hex");
-      const payOrderData = {
-        idempotency_key: payIdempotencyKey,
-        order_version: createData.order?.version
+      // Step 2: Update order to CANCELED state
+      const updateOrderData = {
+        order: {
+          version: createData.order?.version,
+          state: "CANCELED"
+        }
       };
 
-      console.log("[Square Orders] Marking order as paid...");
+      console.log("[Square Orders] Updating order to CANCELED...");
 
-      const payResponse = await fetch(
-        `https://connect.squareup.com/v2/orders/${orderId}/pay`,
+      const updateResponse = await fetch(
+        `https://connect.squareup.com/v2/orders/${orderId}`,
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Square-Version": "2024-09-19",
             "Authorization": `Bearer ${token.accessToken}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(payOrderData)
+          body: JSON.stringify(updateOrderData)
         }
       );
 
-      const payData = await payResponse.json();
+      const updateData = await updateResponse.json();
 
-      if (!payResponse.ok) {
-        console.error("[Square Orders] Error paying order:", payData);
-        return res.status(payResponse.status).json({ 
-          error: "Failed to mark order as paid", 
-          details: payData 
+      if (!updateResponse.ok) {
+        console.error("[Square Orders] Error updating order:", updateData);
+        return res.status(updateResponse.status).json({ 
+          error: "Failed to update order to CANCELED", 
+          details: updateData 
         });
       }
 
-      console.log("[Square Orders] Order completed successfully:", orderId);
+      console.log("[Square Orders] Order canceled successfully:", orderId);
 
-      res.json(payData);
+      res.json(updateData);
     } catch (error) {
       console.error("[Square Orders] Error:", error);
       res.status(500).json({ error: "Failed to create Square order" });

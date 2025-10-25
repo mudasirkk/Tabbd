@@ -605,21 +605,17 @@ export default function Dashboard() {
                       description: `Merchant ID: ${squareStatus.merchantId}`,
                     });
                   } else {
-                    console.log('[Frontend] Starting Square OAuth with PKCE...');
+                    console.log('[Frontend] Starting Square OAuth...');
                     try {
                       const response = await fetch('/api/square/oauth/start');
                       const data = await response.json();
                       
-                      console.log('[Frontend] Received OAuth values');
-                      
-                      document.cookie = `square-code-verifier=${data.squareCodeVerifier}; path=/`;
-                      document.cookie = `square-state=${data.squareState}; path=/`;
+                      console.log('[Frontend] Received state:', data.state);
                       
                       const scopes = 'MERCHANT_PROFILE_READ+ORDERS_WRITE+INVENTORY_READ+ITEMS_READ';
                       const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
-                      const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.squareState}&code_challenge=${data.squareCodeChallenge}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                      const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
                       
-                      console.log('[Frontend] Auth URL:', authUrl);
                       console.log('[Frontend] Redirecting to Square...');
                       window.location.href = authUrl;
                     } catch (error) {

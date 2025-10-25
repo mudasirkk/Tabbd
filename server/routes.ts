@@ -3,19 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
-import { randomBytes, createHash } from "crypto";
-
-const base64Encode = (buffer: Buffer) => {
-  return buffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+/g, "");
-};
-
-const sha256 = (str: string) => {
-  return createHash("sha256").update(str).digest();
-};
+import { randomBytes } from "crypto";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   if (!process.env.SQUARE_APPLICATION_SECRET) {
@@ -25,22 +13,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("Square OAuth will not work without this secret.");
   }
 
-  // Generate OAuth values with PKCE
+  // Generate OAuth state for CSRF protection
   app.get("/api/square/oauth/start", async (req, res) => {
-    console.log("[Square OAuth] Generating PKCE values...");
+    console.log("[Square OAuth] Generating state...");
 
-    const codeVerifier = base64Encode(randomBytes(32));
-    const codeChallenge = base64Encode(sha256(codeVerifier));
-    const state = base64Encode(randomBytes(12));
+    const state = randomBytes(32).toString('hex');
 
-    console.log("[Square OAuth] Code verifier generated");
-    console.log("[Square OAuth] Code challenge:", codeChallenge);
     console.log("[Square OAuth] State:", state);
 
     res.json({
-      squareCodeChallenge: codeChallenge,
-      squareCodeVerifier: codeVerifier,
-      squareState: state,
+      state: state,
       baseURL: "https://connect.squareup.com/",
       appId: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
     });

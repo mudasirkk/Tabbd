@@ -3,7 +3,18 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
+
+const base64Encode = (buffer: Buffer) => {
+  return buffer.toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+/g, '');
+};
+
+const sha256 = (str: string) => {
+  return createHash('sha256').update(str).digest();
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
   if (!process.env.SQUARE_APPLICATION_SECRET) {
@@ -11,12 +22,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("Square OAuth will not work without this secret.");
   }
 
-  // Square OAuth callback - simplified
+  // Generate OAuth values with PKCE
+  app.get("/api/square/oauth/start", async (req, res) => {
+    console.log('[Square OAuth] Generating PKCE values...');
+    
+    const codeVerifier = base64Encode(randomBytes(32));
+    const codeChallenge = base64Encode(sha256(codeVerifier));
+    const state = base64Encode(randomBytes(12));
+    
+    console.log('[Square OAuth] Code verifier generated');
+    console.log('[Square OAuth] Code challenge:', codeChallenge);
+    console.log('[Square OAuth] State:', state);
+    
+    res.json({
+      squareCodeChallenge: codeChallenge,
+      squareCodeVerifier: codeVerifier,
+      squareState: state,
+      baseURL: 'https://connect.squareup.com/',
+      appId: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
+    });
+  });
+
+  // Square OAuth callback with PKCE
   app.get("/api/square/oauth/callback", async (req, res) => {
     console.log('[Square OAuth Callback] Received callback from Square');
-    const { code, error } = req.query;
+    const { code, state, error } = req.query;
     
-    console.log('[Square OAuth Callback] Code:', code ? 'present' : 'missing', 'Error:', error || 'none');
+    console.log('[Square OAuth Callback] Code:', code ? 'present' : 'missing', 'State:', state || 'none', 'Error:', error || 'none');
     
     if (error) {
       console.error('[Square OAuth Callback] ERROR from Square:', error);
@@ -48,6 +80,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
+    const cookies = req.headers.cookie?.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>) || {};
+    
+    const codeVerifier = cookies['square-code-verifier'];
+    const savedState = cookies['square-state'];
+    
+    console.log('[Square OAuth Callback] Code verifier from cookie:', codeVerifier ? 'present' : 'missing');
+    console.log('[Square OAuth Callback] Saved state from cookie:', savedState ? 'present' : 'missing');
+    
+    if (!codeVerifier) {
+      console.error('[Square OAuth Callback] ERROR: Missing code verifier cookie');
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Authorization Failed</title></head>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>Missing code verifier. Please try again.</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
+    
+    if (state !== savedState) {
+      console.error('[Square OAuth Callback] ERROR: State mismatch');
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Square Authorization Failed</title></head>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>State verification failed. This may be a security issue.</p>
+          <a href="/">Return to App</a>
+        </body>
+        </html>
+      `);
+    }
+    
+    console.log('[Square OAuth Callback] State verified successfully');
+    
     if (!process.env.SQUARE_APPLICATION_SECRET) {
       console.error('[Square OAuth Callback] CRITICAL ERROR: SQUARE_APPLICATION_SECRET is not set');
       return res.status(500).send(`
@@ -63,10 +139,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     
-    console.log('[Square OAuth Callback] SQUARE_APPLICATION_SECRET is present');
-    
     try {
-      console.log('[Square OAuth Callback] Exchanging authorization code for access token...');
+      console.log('[Square OAuth Callback] Exchanging authorization code for access token with PKCE...');
       const tokenResponse = await fetch('https://connect.squareup.com/oauth2/token', {
         method: 'POST',
         headers: {
@@ -77,6 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           client_id: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
           client_secret: process.env.SQUARE_APPLICATION_SECRET,
           code: code,
+          code_verifier: codeVerifier,
           grant_type: 'authorization_code',
         }),
       });
@@ -104,13 +179,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         merchantId: tokenData.merchant_id,
       });
       
-      console.log('[Square OAuth Callback] Tokens saved successfully! Redirecting to app...');
+      console.log('[Square OAuth Callback] Tokens saved successfully! Clearing cookies and redirecting...');
       res.send(`
         <!DOCTYPE html>
         <html>
         <head><title>Square Connected</title></head>
         <body>
           <script>
+            document.cookie = 'square-code-verifier=; Max-Age=0';
+            document.cookie = 'square-state=; Max-Age=0';
             window.location.href = '/?square_connected=true';
           </script>
         </body>

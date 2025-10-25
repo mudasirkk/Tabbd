@@ -69,8 +69,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       const tokenData = await tokenResponse.json();
-      
-      console.log("[Square OAuth] Full token response:", JSON.stringify(tokenData, null, 2));
+
+      console.log(
+        "[Square OAuth] Full token response:",
+        JSON.stringify(tokenData, null, 2),
+      );
 
       if (tokenData.error) {
         console.error("[Square OAuth] Error exchanging code:", tokenData);
@@ -78,7 +81,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("[Square OAuth] Tokens received successfully");
-      console.log("[Square OAuth] Access token:", tokenData.access_token ? 'present' : 'MISSING');
+      console.log(
+        "[Square OAuth] Access token:",
+        tokenData.access_token ? "present" : "MISSING",
+      );
       console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
 
       // Validate all required fields exist
@@ -88,17 +94,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("[Square OAuth] merchant_id:", tokenData.merchant_id);
         return res.status(500).json({
           error: "Invalid token response from Square",
-          tokenData: tokenData
+          tokenData: tokenData,
         });
       }
 
       // Save tokens to database
-      await storage.saveSquareToken({
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
-        merchantId: tokenData.merchant_id,
-      });
+      // await storage.saveSquareToken({
+      //   accessToken: tokenData.access_token,
+      //   refreshToken: tokenData.refresh_token || null,
+      //   expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
+      //   merchantId: tokenData.merchant_id,
+      // });
 
       console.log("[Square OAuth] Tokens saved to database");
 
@@ -117,17 +123,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     } catch (error) {
       console.error("[Square OAuth] Callback error:", error);
-      
+
       // Return the error structure for debugging
-      if (error && typeof error === 'object') {
+      if (error && typeof error === "object") {
         return res.status(500).json({
-          error: 'OAuth callback failed',
+          error: "OAuth callback failed",
           details: error,
-          message: error instanceof Error ? error.message : 'Unknown error',
-          accessToken: tokenData.access_token
+          message: error instanceof Error ? error.message : "Unknown error",
         });
       }
-      
+
       res.status(500).send("Server error during OAuth callback");
     }
   });

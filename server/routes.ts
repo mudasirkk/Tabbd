@@ -5,6 +5,26 @@ import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Square OAuth callback
+  app.get("/api/square/oauth/callback", async (req, res) => {
+    const { code, state } = req.query;
+    
+    // Redirect back to app with the authorization code
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Square Authorization</title></head>
+      <body>
+        <script>
+          sessionStorage.setItem('square_auth_code', '${code}');
+          sessionStorage.setItem('square_state', '${state}');
+          window.location.href = '/';
+        </script>
+      </body>
+      </html>
+    `);
+  });
+
   // Menu Items API Routes
   
   // GET /api/menu-items - Get all menu items

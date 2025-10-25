@@ -78,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square OAuth] Tokens received successfully");
       console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
 
-      // Save tokens to database
+      // Save tokens (replace with your own logic)
       await storage.saveSquareToken({
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || null,
@@ -103,7 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     } catch (error) {
       console.error("[Square OAuth] Callback error:", error);
-      res.status(500).send("Server error during OAuth callback");
+      res.status(500).send(error);
     }
   });
 

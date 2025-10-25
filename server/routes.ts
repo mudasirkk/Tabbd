@@ -123,7 +123,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({
           error: 'OAuth callback failed',
           details: error,
-          message: error instanceof Error ? error.message : 'Unknown error'
+          message: error instanceof Error ? error.message : 'Unknown error',
+          accessToken: tokenData.access_token
         });
       }
       

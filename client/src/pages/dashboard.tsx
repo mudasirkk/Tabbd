@@ -678,15 +678,33 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button
-                variant={squareStatus?.connected ? "default" : "outline"}
-                onClick={async () => {
-                  if (squareStatus?.connected) {
-                    toast({
-                      title: "Square Connected",
-                      description: `Merchant ID: ${squareStatus.merchantId}`,
-                    });
-                  } else {
+              {squareStatus?.connected ? (
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    try {
+                      await apiRequest("DELETE", "/api/square/disconnect");
+                      queryClient.invalidateQueries({ queryKey: ["/api/square/status"] });
+                      toast({
+                        title: "Disconnected",
+                        description: "Square account has been disconnected",
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to disconnect Square account",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  data-testid="button-disconnect-square"
+                >
+                  Disconnect Square
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={async () => {
                     console.log('[Frontend] Starting Square OAuth...');
                     try {
                       const response = await fetch('/api/square/oauth/start');
@@ -708,12 +726,12 @@ export default function Dashboard() {
                         variant: "destructive",
                       });
                     }
-                  }
-                }}
-                data-testid="button-connect-square"
-              >
-                {squareStatus?.connected ? "✓ Connected to Square" : "Connect to Square"}
-              </Button>
+                  }}
+                  data-testid="button-connect-square"
+                >
+                  Connect to Square
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => setLocation("/menu")}

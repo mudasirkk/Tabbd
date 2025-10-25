@@ -152,6 +152,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DELETE /api/square/disconnect - Disconnect Square account
+  app.delete("/api/square/disconnect", async (req, res) => {
+    try {
+      await storage.deleteSquareToken();
+      console.log("[Square] Account disconnected");
+      res.json({ success: true, message: "Square account disconnected" });
+    } catch (error) {
+      console.error("Error disconnecting Square:", error);
+      res.status(500).json({ error: "Failed to disconnect Square account" });
+    }
+  });
+
   // GET /api/square/locations - Fetch Square locations
   app.get("/api/square/locations", async (req, res) => {
     try {

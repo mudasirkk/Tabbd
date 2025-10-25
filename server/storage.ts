@@ -21,6 +21,7 @@ export interface IStorage {
   // Square tokens
   saveSquareToken(token: InsertSquareToken): Promise<SquareToken>;
   getSquareToken(): Promise<SquareToken | undefined>;
+  deleteSquareToken(): Promise<void>;
   
   // OAuth states
   saveOAuthState(state: InsertOAuthState): Promise<OAuthState>;
@@ -138,6 +139,10 @@ export class DatabaseStorage implements IStorage {
   async getSquareToken(): Promise<SquareToken | undefined> {
     const [token] = await db.select().from(squareTokens).limit(1);
     return token || undefined;
+  }
+
+  async deleteSquareToken(): Promise<void> {
+    await db.delete(squareTokens);
   }
 
   async saveOAuthState(state: InsertOAuthState): Promise<OAuthState> {

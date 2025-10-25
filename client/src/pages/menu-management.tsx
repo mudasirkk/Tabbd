@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
+import { Plus, Edit, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,10 @@ export default function MenuManagement() {
     retryDelay: 1000,
     staleTime: 0, // Always fetch fresh data
     refetchOnMount: 'always', // Always refetch when component mounts
+  });
+
+  const { data: squareStatus } = useQuery<{ connected: boolean; merchantId: string | null }>({
+    queryKey: ["/api/square/status"],
   });
   
   useEffect(() => {
@@ -251,6 +255,21 @@ export default function MenuManagement() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {squareStatus?.connected && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    toast({
+                      title: "Coming Soon",
+                      description: "Square menu sync will be available soon",
+                    });
+                  }}
+                  data-testid="button-sync-square"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Import from Square
+                </Button>
+              )}
               {menuItems.length > 0 && (
                 <Button
                   variant="destructive"

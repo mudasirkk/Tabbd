@@ -64,6 +64,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             client_secret: process.env.SQUARE_APPLICATION_SECRET,
             code,
             grant_type: "authorization_code",
+            redirect_uri: "https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback",
           }),
         },
       );

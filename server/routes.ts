@@ -26,8 +26,8 @@ const getAuthUrlValues = () => {
     squareCodeChallenge: codeChallenge,
     squareCodeVerifier: codeVerifier,
     squareState: state,
-    baseURL: 'https://connect.squareupsandbox.com/',
-    appId: 'sandbox-sq0idb-4KygwAQgkc2WsOIEBox3tw',
+    baseURL: 'https://app.squareup.com/',
+    appId: 'sq0idp-o0gFxi0LCTcztITa6DWf2g',
   };
 };
 

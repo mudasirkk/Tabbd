@@ -594,6 +594,8 @@ export default function Dashboard() {
 
                     // Scopes needed for the application
                     const scopes = [
+                      'CUSTOMERS_WRITE',
+                      'CUSTOMERS_READ',
                       'MERCHANT_PROFILE_READ',
                       'ORDERS_WRITE',
                       'INVENTORY_READ',

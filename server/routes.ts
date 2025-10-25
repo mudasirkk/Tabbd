@@ -301,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         order: {
           location_id: locationId,
           line_items: lineItems,
-          state: "OPEN",
+          state: "COMPLETED",
           metadata: {
             station_name: stationName,
             pricing_tier: pricingTier || "group",

@@ -164,7 +164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square Catalog] Fetching items...");
 
       const response = await fetch(
-        "https://connect.squareup.com/v2/catalog/list?types=ITEM",
+        "https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY",
         {
           method: "GET",
           headers: {
@@ -183,6 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = await response.json();
       console.log(`[Square Catalog] Fetched ${data.objects?.length || 0} items`);
+      console.log(`[Square Catalog] Full response:`, JSON.stringify(data, null, 2));
 
       res.json(data);
     } catch (error) {

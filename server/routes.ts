@@ -182,8 +182,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const data = await response.json();
-      console.log(`[Square Catalog] Fetched ${data.objects?.length || 0} items`);
-      console.log(`[Square Catalog] Full response:`, JSON.stringify(data, null, 2));
+      
+      // Filter to only include ITEM and CATEGORY types
+      if (data.objects) {
+        data.objects = data.objects.filter((obj: any) => 
+          obj.type === "ITEM" || obj.type === "CATEGORY"
+        );
+      }
+      
+      console.log(`[Square Catalog] Fetched ${data.objects?.length || 0} items and categories`);
 
       res.json(data);
     } catch (error) {

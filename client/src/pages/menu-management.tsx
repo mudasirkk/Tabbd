@@ -79,44 +79,6 @@ export default function MenuManagement() {
   });
 
   useEffect(() => {
-    if (squareCatalog) {
-      console.log("=== Square Catalog Import Data Structure ===");
-      console.log("Full response:", squareCatalog);
-      
-      // Separate items and categories
-      const items = squareCatalog.objects?.filter((obj: any) => obj.type === "ITEM") || [];
-      const categories = squareCatalog.objects?.filter((obj: any) => obj.type === "CATEGORY") || [];
-      
-      console.log("\n=== Categories (Menu Groups) ===");
-      categories.forEach((cat: any) => {
-        console.log(`Category ID: ${cat.id}`);
-        console.log(`Category Name: ${cat.category_data?.name}`);
-        console.log("---");
-      });
-      
-      console.log("\n=== Items ===");
-      items.forEach((item: any) => {
-        console.log(`Item: ${item.item_data.name}`);
-        console.log(`Category ID: ${item.item_data.category_id || "No category"}`);
-        
-        // Find matching category
-        const category = categories.find((c: any) => c.id === item.item_data.category_id);
-        if (category) {
-          console.log(`Menu Group Name: ${category.category_data.name}`);
-        }
-        
-        if (item.item_data.variations) {
-          console.log("Variations:");
-          item.item_data.variations.forEach((v: any) => {
-            console.log(`  - ${v.item_variation_data.name}: $${(v.item_variation_data.price_money?.amount / 100).toFixed(2)}`);
-          });
-        }
-        console.log("---");
-      });
-    }
-  }, [squareCatalog]);
-  
-  useEffect(() => {
     if (error) {
       toast({
         title: "Error Loading Menu",
@@ -351,7 +313,7 @@ export default function MenuManagement() {
     
     const allKeys = new Set<string>();
     squareCatalog.objects.forEach((item: any) => {
-      if (item.item_data.variations) {
+      if (item.type === "ITEM" && item.item_data?.variations) {
         item.item_data.variations.forEach((variation: any) => {
           allKeys.add(`${item.id}-${variation.id}`);
         });

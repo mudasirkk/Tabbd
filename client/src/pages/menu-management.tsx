@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
+import { Plus, Edit, Trash2, ArrowLeft, RefreshCw, Download } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ export default function MenuManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
   const [squareItemsDialogOpen, setSquareItemsDialogOpen] = useState(false);
+  const [selectedSquareItems, setSelectedSquareItems] = useState<Set<string>>(new Set());
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -179,6 +181,29 @@ export default function MenuManagement() {
     },
   });
 
+  const importSquareItemsMutation = useMutation({
+    mutationFn: async (items: { name: string; price: string; category: string }[]) => {
+      const promises = items.map(item => apiRequest("POST", "/api/menu-items", item));
+      return await Promise.all(promises);
+    },
+    onSuccess: (_, items) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/menu-items"] });
+      toast({
+        title: "Items Imported",
+        description: `Successfully imported ${items.length} item${items.length > 1 ? 's' : ''} from Square`,
+      });
+      setSquareItemsDialogOpen(false);
+      setSelectedSquareItems(new Set());
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to import items from Square",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenAddDialog = () => {
     setEditingItem(null);
     setFormData({ name: "", price: "", category: "Custom" });
@@ -219,6 +244,73 @@ export default function MenuManagement() {
 
   const handleDeleteItem = (item: MenuItem) => {
     deleteMutation.mutate(item.id);
+  };
+
+  const handleImportSelectedItems = () => {
+    if (!squareCatalog?.objects || selectedSquareItems.size === 0) {
+      toast({
+        title: "No Items Selected",
+        description: "Please select at least one item to import",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const itemsToImport: { name: string; price: string; category: string }[] = [];
+
+    squareCatalog.objects.forEach((item: any) => {
+      if (item.item_data.variations) {
+        item.item_data.variations.forEach((variation: any) => {
+          const variationKey = `${item.id}-${variation.id}`;
+          if (selectedSquareItems.has(variationKey)) {
+            const price = variation.item_variation_data.price_money?.amount || 0;
+            const variationName = variation.item_variation_data.name;
+            const itemName = variationName === "Regular" 
+              ? item.item_data.name 
+              : `${item.item_data.name} - ${variationName}`;
+            
+            itemsToImport.push({
+              name: itemName,
+              price: (price / 100).toFixed(2),
+              category: "Custom",
+            });
+          }
+        });
+      }
+    });
+
+    importSquareItemsMutation.mutate(itemsToImport);
+  };
+
+  const toggleSquareItem = (itemId: string, variationId: string) => {
+    const key = `${itemId}-${variationId}`;
+    setSelectedSquareItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllSquareItems = () => {
+    if (!squareCatalog?.objects) return;
+    
+    const allKeys = new Set<string>();
+    squareCatalog.objects.forEach((item: any) => {
+      if (item.item_data.variations) {
+        item.item_data.variations.forEach((variation: any) => {
+          allKeys.add(`${item.id}-${variation.id}`);
+        });
+      }
+    });
+    setSelectedSquareItems(allKeys);
+  };
+
+  const deselectAllSquareItems = () => {
+    setSelectedSquareItems(new Set());
   };
 
   const groupedItems = menuItems.reduce((acc, item) => {
@@ -469,11 +561,11 @@ export default function MenuManagement() {
       </AlertDialog>
 
       <Dialog open={squareItemsDialogOpen} onOpenChange={setSquareItemsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="dialog-square-items">
+        <DialogContent className="max-w-4xl max-h-[85vh]" data-testid="dialog-square-items">
           <DialogHeader>
-            <DialogTitle>Square Menu Items</DialogTitle>
+            <DialogTitle>Import from Square</DialogTitle>
             <DialogDescription>
-              View menu items from your Square catalog
+              Select items to import into your menu
             </DialogDescription>
           </DialogHeader>
 
@@ -484,31 +576,73 @@ export default function MenuManagement() {
                 <p className="text-muted-foreground">Loading Square menu items...</p>
               </div>
             ) : squareCatalog?.objects && squareCatalog.objects.length > 0 ? (
-              <div className="space-y-3">
-                {squareCatalog.objects.map((item: any) => (
-                  <Card key={item.id} className="p-4">
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-lg">{item.item_data.name}</h3>
-                      {item.item_data.description && (
-                        <p className="text-sm text-muted-foreground">{item.item_data.description}</p>
-                      )}
-                      {item.item_data.variations && item.item_data.variations.length > 0 && (
-                        <div className="space-y-1 mt-3">
-                          <p className="text-sm font-medium">Variations:</p>
-                          {item.item_data.variations.map((variation: any) => (
-                            <div key={variation.id} className="flex items-center justify-between text-sm pl-4">
-                              <span>{variation.item_variation_data.name}</span>
-                              <span className="font-mono font-semibold">
-                                ${(variation.item_variation_data.price_money?.amount / 100).toFixed(2)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
+              <>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={selectAllSquareItems}
+                      data-testid="button-select-all-square"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={deselectAllSquareItems}
+                      data-testid="button-deselect-all-square"
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedSquareItems.size} selected
+                  </span>
+                </div>
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                  {squareCatalog.objects.map((item: any) => (
+                    <Card key={item.id} className="p-4">
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-base">{item.item_data.name}</h3>
+                        {item.item_data.variations && item.item_data.variations.length > 0 && (
+                          <div className="space-y-2">
+                            {item.item_data.variations.map((variation: any) => {
+                              const variationKey = `${item.id}-${variation.id}`;
+                              const isSelected = selectedSquareItems.has(variationKey);
+                              const price = variation.item_variation_data.price_money?.amount || 0;
+                              const variationName = variation.item_variation_data.name;
+                              
+                              return (
+                                <div
+                                  key={variation.id}
+                                  className="flex items-center justify-between p-3 rounded-md border hover-elevate cursor-pointer"
+                                  onClick={() => toggleSquareItem(item.id, variation.id)}
+                                  data-testid={`square-item-${variationKey}`}
+                                >
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => toggleSquareItem(item.id, variation.id)}
+                                      data-testid={`checkbox-${variationKey}`}
+                                    />
+                                    <div className="flex-1">
+                                      <p className="font-medium">{variationName}</p>
+                                    </div>
+                                  </div>
+                                  <span className="font-mono font-bold text-primary">
+                                    ${(price / 100).toFixed(2)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="text-center py-8">
                 <p className="text-muted-foreground">No items found in your Square catalog</p>
@@ -522,7 +656,17 @@ export default function MenuManagement() {
               onClick={() => setSquareItemsDialogOpen(false)}
               data-testid="button-close-square-dialog"
             >
-              Close
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportSelectedItems}
+              disabled={importSquareItemsMutation.isPending || selectedSquareItems.size === 0}
+              data-testid="button-import-selected"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {importSquareItemsMutation.isPending 
+                ? "Importing..." 
+                : `Import ${selectedSquareItems.size > 0 ? `(${selectedSquareItems.size})` : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>

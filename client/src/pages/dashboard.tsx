@@ -577,7 +577,7 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  const authUrl = 'https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-o0gFxi0LCTcztITa6DWf2g&scope=MERCHANT_PROFILE_READ%20ORDERS_WRITE%20INVENTORY_READ%20ITEMS_READ&state=82201dd8d83d23cc8a48caf52b&session=false';
+                  const authUrl = 'https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-o0gFxi0LCTcztITa6DWf2g&scope=MERCHANT_PROFILE_READ%20ORDERS_WRITE%20INVENTORY_READ%20ITEMS_READ&state=82201dd8d83d23cc8a48caf52b&session=false&redirect_uri=https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
                   window.location.href = authUrl;
                 }}
                 data-testid="button-connect-square"

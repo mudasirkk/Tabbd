@@ -308,37 +308,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create order with fulfillment (will show as "active" when paid)
-      const pickupTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-      
+      // Create simple canceled order
       const orderData = {
         idempotency_key: idempotencyKey,
         order: {
           location_id: locationId,
           line_items: lineItems,
-          state: "OPEN",
-          fulfillments: [{
-            type: "PICKUP",
-            state: "PROPOSED",
-            pickup_details: {
-              recipient: {
-                display_name: `${stationName} Customer`
-              },
-              pickup_at: pickupTime,
-              note: `${pricingTier === "solo" ? "Solo" : "Group"} - ${(timeElapsed / 3600).toFixed(2)}hrs`
-            }
-          }],
-          metadata: {
-            station_name: stationName,
-            pricing_tier: pricingTier || "group",
-            time_elapsed_seconds: timeElapsed?.toString() || "0"
-          }
+          state: "CANCELED"
         }
       };
 
-      console.log("[Square Orders] Creating order...", JSON.stringify(orderData, null, 2));
+      console.log("[Square Orders] Creating canceled order...");
 
-      const createResponse = await fetch(
+      const response = await fetch(
         "https://connect.squareup.com/v2/orders",
         {
           method: "POST",
@@ -351,55 +333,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       );
 
-      const createData = await createResponse.json();
+      const data = await response.json();
 
-      if (!createResponse.ok) {
-        console.error("[Square Orders] Error creating order:", createData);
-        return res.status(createResponse.status).json({ 
+      if (!response.ok) {
+        console.error("[Square Orders] Error creating order:", data);
+        return res.status(response.status).json({ 
           error: "Failed to create Square order", 
-          details: createData 
+          details: data 
         });
       }
 
-      const orderId = createData.order?.id;
-      console.log("[Square Orders] Order created:", orderId);
+      console.log("[Square Orders] Canceled order created:", data.order?.id);
 
-      // Step 2: Update order to CANCELED state
-      const updateOrderData = {
-        order: {
-          version: createData.order?.version,
-          state: "CANCELED"
-        }
-      };
-
-      console.log("[Square Orders] Updating order to CANCELED...");
-
-      const updateResponse = await fetch(
-        `https://connect.squareup.com/v2/orders/${orderId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Square-Version": "2024-09-19",
-            "Authorization": `Bearer ${token.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updateOrderData)
-        }
-      );
-
-      const updateData = await updateResponse.json();
-
-      if (!updateResponse.ok) {
-        console.error("[Square Orders] Error updating order:", updateData);
-        return res.status(updateResponse.status).json({ 
-          error: "Failed to update order to CANCELED", 
-          details: updateData 
-        });
-      }
-
-      console.log("[Square Orders] Order canceled successfully:", orderId);
-
-      res.json(updateData);
+      res.json(data);
     } catch (error) {
       console.error("[Square Orders] Error:", error);
       res.status(500).json({ error: "Failed to create Square order" });

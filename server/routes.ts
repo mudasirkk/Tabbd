@@ -296,13 +296,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Step 1: Create order in OPEN state
+      // Create scheduled pickup time (current time + 30 minutes)
+      const pickupTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+      // Create order with scheduled pickup fulfillment
       const orderData = {
         idempotency_key: idempotencyKey,
         order: {
           location_id: locationId,
           line_items: lineItems,
           state: "OPEN",
+          fulfillments: [{
+            type: "PICKUP",
+            state: "PROPOSED",
+            pickup_details: {
+              recipient: {
+                display_name: `${stationName} Customer`
+              },
+              schedule_type: "SCHEDULED",
+              pickup_at: pickupTime,
+              prep_time_duration: "PT10M", // 10 minutes prep time
+              note: `${pricingTier === "solo" ? "Solo" : "Group"} pricing - ${(timeElapsed / 3600).toFixed(2)} hours`
+            }
+          }],
           metadata: {
             station_name: stationName,
             pricing_tier: pricingTier || "group",
@@ -311,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      console.log("[Square Orders] Creating order...", JSON.stringify(orderData, null, 2));
+      console.log("[Square Orders] Creating scheduled order...", JSON.stringify(orderData, null, 2));
 
       const createResponse = await fetch(
         "https://connect.squareup.com/v2/orders",
@@ -337,44 +353,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const orderId = createData.order?.id;
-      console.log("[Square Orders] Order created:", orderId);
+      console.log("[Square Orders] Scheduled order created successfully:", orderId);
 
-      // Step 2: Update order to CANCELED state
-      const updateOrderData = {
-        order: {
-          version: createData.order?.version,
-          state: "CANCELED"
-        }
-      };
-
-      console.log("[Square Orders] Updating order to CANCELED...");
-
-      const updateResponse = await fetch(
-        `https://connect.squareup.com/v2/orders/${orderId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Square-Version": "2024-09-19",
-            "Authorization": `Bearer ${token.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updateOrderData)
-        }
-      );
-
-      const updateData = await updateResponse.json();
-
-      if (!updateResponse.ok) {
-        console.error("[Square Orders] Error updating order:", updateData);
-        return res.status(updateResponse.status).json({ 
-          error: "Failed to update order to CANCELED", 
-          details: updateData 
-        });
-      }
-
-      console.log("[Square Orders] Order canceled successfully:", orderId);
-
-      res.json(updateData);
+      res.json(createData);
     } catch (error) {
       console.error("[Square Orders] Error:", error);
       res.status(500).json({ error: "Failed to create Square order" });

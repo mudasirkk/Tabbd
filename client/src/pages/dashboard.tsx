@@ -514,29 +514,20 @@ export default function Dashboard() {
     setCheckoutOpen(false);
     setShowPaymentProcessing(true);
 
-    // If Square is connected and deviceId is provided, send to terminal
+    // If Square is connected and deviceId is provided, send to terminal (fire and forget)
     if (squareStatus?.connected && checkoutData.deviceId) {
-      try {
-        const timeElapsed = getTimeElapsed(station);
-        const hours = (timeElapsed / 3600).toFixed(2);
-        const tierLabel = checkoutData.pricingTier === "solo" ? "Solo" : "Group";
-        
-        await apiRequest("POST", "/api/square/terminals/checkouts", {
-          deviceId: checkoutData.deviceId,
-          amount: checkoutData.grandTotal,
-          referenceId: `${station.name}-${Date.now()}`,
-          note: `${station.name} - ${tierLabel} - ${hours}hrs`
-        });
-      } catch (error) {
+      const timeElapsed = getTimeElapsed(station);
+      const hours = (timeElapsed / 3600).toFixed(2);
+      const tierLabel = checkoutData.pricingTier === "solo" ? "Solo" : "Group";
+      
+      apiRequest("POST", "/api/square/terminals/checkouts", {
+        deviceId: checkoutData.deviceId,
+        amount: checkoutData.grandTotal,
+        referenceId: `${station.name}-${Date.now()}`,
+        note: `${station.name} - ${tierLabel} - ${hours}hrs`
+      }).catch((error) => {
         console.error("[Terminal Checkout] Error:", error);
-        setShowPaymentProcessing(false);
-        toast({
-          title: "Terminal Error",
-          description: "Failed to send payment to terminal. Session remains active.",
-          variant: "destructive",
-        });
-        return;
-      }
+      });
     }
   };
 

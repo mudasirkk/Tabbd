@@ -10,25 +10,26 @@ export function PaymentProcessingOverlay({ show, onComplete }: PaymentProcessing
   const [stage, setStage] = useState<"processing" | "confirmed">("processing");
 
   useEffect(() => {
-    if (show) {
-      setStage("processing");
-      
-      // Transition to confirmed after 1 second
-      const confirmTimer = setTimeout(() => {
-        setStage("confirmed");
-      }, 1000);
+    if (!show) return;
+    
+    setStage("processing");
+    
+    // Transition to confirmed after 1 second
+    const confirmTimer = setTimeout(() => {
+      setStage("confirmed");
+    }, 1000);
 
-      // Hide overlay and call onComplete after 2 seconds total
-      const completeTimer = setTimeout(() => {
-        onComplete();
-      }, 2000);
+    // Hide overlay and call onComplete after 2 seconds total
+    const completeTimer = setTimeout(() => {
+      onComplete();
+    }, 2000);
 
-      return () => {
-        clearTimeout(confirmTimer);
-        clearTimeout(completeTimer);
-      };
-    }
-  }, [show, onComplete]);
+    return () => {
+      clearTimeout(confirmTimer);
+      clearTimeout(completeTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show]);
 
   if (!show) return null;
 

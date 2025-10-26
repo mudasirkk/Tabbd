@@ -8,6 +8,7 @@ import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
 import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { TransferSessionDialog } from "@/components/TransferSessionDialog";
+import { PaymentProcessingOverlay } from "@/components/PaymentProcessingOverlay";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -157,6 +158,7 @@ export default function Dashboard() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
   const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
 
@@ -508,6 +510,10 @@ export default function Dashboard() {
     const station = stations.find((s) => s.id === selectedStationId);
     if (!station) return;
 
+    // Close checkout dialog and show payment processing overlay
+    setCheckoutOpen(false);
+    setShowPaymentProcessing(true);
+
     // If Square is connected and deviceId is provided, send to terminal
     if (squareStatus?.connected && checkoutData.deviceId) {
       try {
@@ -521,47 +527,37 @@ export default function Dashboard() {
           referenceId: `${station.name}-${Date.now()}`,
           note: `${station.name} - ${tierLabel} - ${hours}hrs`
         });
-
-        // End session after successful terminal request
-        setStations((prev) =>
-          prev.map((s) =>
-            s.id === selectedStationId
-              ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
-              : s
-          )
-        );
-        setCheckoutOpen(false);
-        setSelectedStationId(null);
-
-        toast({
-          title: "Sent to Terminal",
-          description: "Payment request sent to Square reader",
-        });
       } catch (error) {
         console.error("[Terminal Checkout] Error:", error);
+        setShowPaymentProcessing(false);
         toast({
           title: "Terminal Error",
           description: "Failed to send payment to terminal. Session remains active.",
           variant: "destructive",
         });
+        return;
       }
-    } else {
-      // No Square/terminal, just end session locally
-      setStations((prev) =>
-        prev.map((s) =>
-          s.id === selectedStationId
-            ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
-            : s
-        )
-      );
-      setCheckoutOpen(false);
-      setSelectedStationId(null);
-
-      toast({
-        title: "Payment Sent to Reader",
-        description: "Session ended successfully",
-      });
     }
+  };
+
+  const handlePaymentComplete = () => {
+    if (!selectedStationId) return;
+
+    // End session after payment processing animation completes
+    setStations((prev) =>
+      prev.map((s) =>
+        s.id === selectedStationId
+          ? { ...s, isActive: false, isPaused: false, startTime: undefined, pausedTime: undefined, items: [] }
+          : s
+      )
+    );
+    setShowPaymentProcessing(false);
+    setSelectedStationId(null);
+
+    toast({
+      title: "Payment Sent to Reader",
+      description: "Session ended successfully",
+    });
   };
 
   const handleTransferSession = (destinationStationId: string) => {
@@ -902,6 +898,11 @@ export default function Dashboard() {
           />
         </>
       )}
+
+      <PaymentProcessingOverlay
+        show={showPaymentProcessing}
+        onComplete={handlePaymentComplete}
+      />
     </div>
   );
 }

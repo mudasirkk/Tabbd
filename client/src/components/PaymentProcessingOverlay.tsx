@@ -55,7 +55,7 @@ export function PaymentProcessingOverlay({
                 </p>
               </div>
               
-              <div className="relative rounded-lg overflow-hidden border">
+              <div className="relative rounded-lg overflow-hidden">
                 <img 
                   src={terminalImage} 
                   alt="Card reader terminal" 

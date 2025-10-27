@@ -159,6 +159,10 @@ export default function Dashboard() {
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
+  const [paymentData, setPaymentData] = useState<{ totalAmount: number; itemCount: number }>({ 
+    totalAmount: 0, 
+    itemCount: 0 
+  });
   const [stationToStart, setStationToStart] = useState<string | null>(null);
   const [tempItems, setTempItems] = useState<{ [itemId: string]: number }>({});
 
@@ -509,6 +513,15 @@ export default function Dashboard() {
 
     const station = stations.find((s) => s.id === selectedStationId);
     if (!station) return;
+
+    // Calculate total item count
+    const itemCount = station.items.reduce((sum, item) => sum + item.quantity, 0);
+
+    // Store payment data for overlay
+    setPaymentData({
+      totalAmount: checkoutData.grandTotal,
+      itemCount: itemCount
+    });
 
     // Close checkout dialog and show payment processing overlay
     setCheckoutOpen(false);
@@ -893,6 +906,8 @@ export default function Dashboard() {
       <PaymentProcessingOverlay
         show={showPaymentProcessing}
         onComplete={handlePaymentComplete}
+        totalAmount={paymentData.totalAmount}
+        itemCount={paymentData.itemCount}
       />
     </div>
   );

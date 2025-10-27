@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
-import terminalImage from "@assets/stock_images/square_terminal_card_13347ec6.jpg";
+import terminalImage from "@assets/image_1761538271504.png";
 
 interface PaymentProcessingOverlayProps {
   show: boolean;

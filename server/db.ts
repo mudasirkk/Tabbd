@@ -9,13 +9,6 @@ neonConfig.webSocketConstructor = ws;
 function getDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) {
-    console.log("[DB] DATABASE_URL value:", url === undefined ? 'undefined' : url === '' ? 'empty string' : 'has value');
-    console.log("[DB] DATABASE_URL typeof:", typeof process.env.DATABASE_URL);
-    console.log("[DB] All DB-related env vars:");
-    Object.keys(process.env).filter(k => k.includes('PG') || k.includes('DATABASE')).forEach(k => {
-      const val = process.env[k];
-      console.log(`  ${k}: ${val === undefined ? 'undefined' : val === '' ? 'empty' : 'has value (len=' + val.length + ')'}`);
-    });
     throw new Error(
       "DATABASE_URL must be set. Did you forget to provision a database?",
     );

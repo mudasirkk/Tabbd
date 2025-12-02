@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Minus, ShoppingBag, DollarSign } from "lucide-react";
+import { Plus, Minus, ShoppingBag, DollarSign, Link as LinkIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,8 @@ interface AddItemsDialogProps {
   onRemoveItem: (itemId: string) => void;
   onAddCustomItem: (name: string, price: number) => void;
   onConfirm: () => void;
+  squareConnected?: boolean;
+  onConnectSquare?: () => void;
 }
 
 export function AddItemsDialog({
@@ -44,11 +46,41 @@ export function AddItemsDialog({
   onRemoveItem,
   onAddCustomItem,
   onConfirm,
+  squareConnected = true,
+  onConnectSquare,
 }: AddItemsDialogProps) {
   const [customItemName, setCustomItemName] = useState("");
   const [customItemPrice, setCustomItemPrice] = useState("");
 
   const totalItems = Object.values(selectedItems).reduce((sum, count) => sum + count, 0);
+
+  if (!squareConnected) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md" data-testid="dialog-connect-square">
+          <DialogHeader>
+            <DialogTitle data-testid="text-dialog-title">Connect to Square</DialogTitle>
+            <DialogDescription>
+              Square connection is required to access the menu and process payments.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center py-8 space-y-4">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+              <LinkIcon className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <p className="text-center text-muted-foreground">
+              Connect your Square account to add menu items to customer tabs.
+            </p>
+            {onConnectSquare && (
+              <Button onClick={onConnectSquare} data-testid="button-connect-square-dialog">
+                Connect to Square
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const groupedItems = menuItems.reduce((acc, item) => {
     const category = item.category || "Other";

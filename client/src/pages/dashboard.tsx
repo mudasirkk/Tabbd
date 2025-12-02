@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, Menu, UtensilsCrossed } from "lucide-react";
-import { useLocation } from "wouter";
+import { Clock, UtensilsCrossed, Link as LinkIcon } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
@@ -108,21 +107,21 @@ interface SquareStatus {
 }
 
 export default function Dashboard() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
   
+  const { data: squareStatus, isLoading: squareStatusLoading } = useQuery<SquareStatus>({
+    queryKey: ["/api/square/status"],
+    staleTime: 30000,
+  });
+
   const { data: menuItems, isLoading: menuLoading, error: menuError, refetch } = useQuery<MenuItem[]>({
     queryKey: ["/api/menu-items"],
     retry: 3,
     retryDelay: 1000,
     staleTime: 0,
     refetchOnMount: 'always',
-  });
-  
-  const { data: squareStatus, isLoading: squareStatusLoading } = useQuery<SquareStatus>({
-    queryKey: ["/api/square/status"],
-    staleTime: 30000,
+    enabled: !!squareStatus?.connected,
   });
 
   const { data: squareLocations, isLoading: locationsLoading, error: locationsError } = useQuery<any>({
@@ -711,14 +710,6 @@ export default function Dashboard() {
                   Connect to Square
                 </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={() => setLocation("/menu")}
-                data-testid="button-menu-management"
-              >
-                <UtensilsCrossed className="w-4 h-4 mr-2" />
-                Menu
-              </Button>
               <div className="text-right hidden sm:block">
                 <p className="text-sm text-muted-foreground">Active Stations</p>
                 <p className="text-xl font-mono font-bold" data-testid="text-active-count">
@@ -737,30 +728,7 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {menuLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center space-y-4">
-              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="text-muted-foreground">Loading menu items...</p>
-            </div>
-          </div>
-        ) : menuError ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center space-y-4 max-w-md">
-              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-                <UtensilsCrossed className="w-8 h-8 text-destructive" />
-              </div>
-              <h3 className="text-xl font-semibold">Failed to Load Menu</h3>
-              <p className="text-muted-foreground">
-                Unable to load menu items from the database. Please check your connection and try again.
-              </p>
-              <Button onClick={() => refetch()} data-testid="button-retry-menu">
-                Retry
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">All Stations</h2>
@@ -841,7 +809,6 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-        )}
       </main>
 
       <StartSessionDialog
@@ -855,13 +822,13 @@ export default function Dashboard() {
         }}
       />
 
-      {selectedStation && menuItems && (
+      {selectedStation && (
         <>
           <AddItemsDialog
             open={addItemsOpen}
             onOpenChange={setAddItemsOpen}
             stationName={selectedStation.name}
-            menuItems={menuItems}
+            menuItems={menuItems || []}
             selectedItems={tempItems}
             onAddItem={(itemId) =>
               setTempItems((prev) => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }))
@@ -878,6 +845,23 @@ export default function Dashboard() {
             }
             onAddCustomItem={handleAddCustomItem}
             onConfirm={handleConfirmItems}
+            squareConnected={!!squareStatus?.connected}
+            onConnectSquare={async () => {
+              try {
+                const response = await fetch('/api/square/oauth/start');
+                const data = await response.json();
+                const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT';
+                const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
+                const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                window.location.href = authUrl;
+              } catch (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to start OAuth flow",
+                  variant: "destructive",
+                });
+              }
+            }}
           />
 
           <CheckoutDialog

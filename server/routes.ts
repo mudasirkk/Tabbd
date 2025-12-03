@@ -109,13 +109,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[Square OAuth] Tokens saved to database");
 
+      // Automatically sync menu from Square catalog
+      console.log("[Square OAuth] Starting automatic menu sync...");
+      const syncResult = await syncMenuFromSquare(tokenData.access_token);
+      if (syncResult.success) {
+        console.log(`[Square OAuth] Menu synced successfully: ${syncResult.itemCount} items imported`);
+      } else {
+        console.error("[Square OAuth] Menu sync failed:", syncResult.error);
+      }
+
       // Redirect user to success page
       res.send(`
         <!DOCTYPE html>
         <html>
           <head><title>Square Connected</title></head>
           <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-            <h2>✅ Square account connected successfully!</h2>
+            <h2>Square account connected successfully!</h2>
+            <p>${syncResult.success ? `${syncResult.itemCount} menu items imported from your catalog.` : 'Menu sync is pending.'}</p>
             <script>
               window.location.href = '/?square_connected=true';
             </script>
@@ -157,7 +167,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteSquareToken();
       console.log("[Square] Account disconnected");
-      res.json({ success: true, message: "Square account disconnected" });
+      
+      // Clear all menu items when disconnecting
+      await storage.clearAllMenuItems();
+      console.log("[Square] Menu items cleared");
+      
+      res.json({ success: true, message: "Square account disconnected and menu cleared" });
     } catch (error) {
       console.error("Error disconnecting Square:", error);
       res.status(500).json({ error: "Failed to disconnect Square account" });
@@ -320,6 +335,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Square Terminal] Error:", error);
       res.status(500).json({ error: "Failed to create terminal checkout" });
+    }
+  });
+
+  // Helper function to sync menu items from Square catalog
+  async function syncMenuFromSquare(accessToken: string): Promise<{ success: boolean; itemCount: number; error?: string }> {
+    try {
+      console.log("[Square Sync] Starting menu sync from Square catalog...");
+
+      // Fetch catalog from Square
+      const response = await fetch(
+        "https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY",
+        {
+          method: "GET",
+          headers: {
+            "Square-Version": "2024-09-19",
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[Square Sync] Failed to fetch catalog:", errorData);
+        return { success: false, itemCount: 0, error: "Failed to fetch Square catalog" };
+      }
+
+      const data = await response.json();
+      const objects = data.objects || [];
+
+      // Build category map
+      const categoryMap: { [id: string]: string } = {};
+      objects.forEach((obj: any) => {
+        if (obj.type === "CATEGORY") {
+          categoryMap[obj.id] = obj.category_data?.name || "Other";
+        }
+      });
+
+      // Extract items
+      const items = objects.filter((obj: any) => obj.type === "ITEM");
+      console.log(`[Square Sync] Found ${items.length} items in Square catalog`);
+
+      // Clear existing menu items
+      await storage.clearAllMenuItems();
+      console.log("[Square Sync] Cleared existing menu items");
+
+      // Import items from Square
+      let importedCount = 0;
+      for (const item of items) {
+        const itemData = item.item_data;
+        if (!itemData) continue;
+
+        // Get first variation for price
+        const variation = itemData.variations?.[0];
+        const priceMoney = variation?.item_variation_data?.price_money;
+        const priceInCents = priceMoney?.amount || 0;
+        const priceInDollars = (priceInCents / 100).toFixed(2);
+
+        // Get category name
+        const categoryId = itemData.category_id;
+        const categoryName = categoryId ? categoryMap[categoryId] || "Other" : "Other";
+
+        await storage.createMenuItem({
+          name: itemData.name || "Unnamed Item",
+          price: priceInDollars,
+          category: categoryName,
+        });
+        importedCount++;
+      }
+
+      console.log(`[Square Sync] Successfully imported ${importedCount} menu items`);
+      return { success: true, itemCount: importedCount };
+    } catch (error) {
+      console.error("[Square Sync] Error:", error);
+      return { success: false, itemCount: 0, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+  }
+
+  // POST /api/square/sync-menu - Manually sync menu from Square
+  app.post("/api/square/sync-menu", async (req, res) => {
+    try {
+      const token = await storage.getSquareToken();
+      
+      if (!token) {
+        return res.status(401).json({ error: "Square not connected" });
+      }
+
+      const result = await syncMenuFromSquare(token.accessToken);
+      
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json({ success: true, itemCount: result.itemCount });
+    } catch (error) {
+      console.error("[Square Sync] Error:", error);
+      res.status(500).json({ error: "Failed to sync menu from Square" });
     }
   });
 

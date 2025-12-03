@@ -413,28 +413,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // POST /api/square/sync-menu - Manually sync menu from Square
-  app.post("/api/square/sync-menu", async (req, res) => {
-    try {
-      const token = await storage.getSquareToken();
-      
-      if (!token) {
-        return res.status(401).json({ error: "Square not connected" });
-      }
-
-      const result = await syncMenuFromSquare(token.accessToken);
-      
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json({ success: true, itemCount: result.itemCount });
-    } catch (error) {
-      console.error("[Square Sync] Error:", error);
-      res.status(500).json({ error: "Failed to sync menu from Square" });
-    }
-  });
-
   // GET /api/square/catalog/items - Fetch menu items from Square
   app.get("/api/square/catalog/items", async (req, res) => {
     try {

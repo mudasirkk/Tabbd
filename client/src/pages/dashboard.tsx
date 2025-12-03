@@ -136,15 +136,6 @@ export default function Dashboard() {
     staleTime: 60000,
   });
   
-  const addCustomItemMutation = useMutation({
-    mutationFn: async (data: { name: string; price: string; category: string }) => {
-      return await apiRequest("POST", "/api/menu-items", data);
-    },
-    onSuccess: (newItem) => {
-      // Optimistically update the cache with the new item
-      queryClient.setQueryData<MenuItem[]>(["/api/menu-items"], (old = []) => [...old, newItem]);
-    },
-  });
   
   const [stations, setStations] = useState<Station[]>(() => 
     loadFromLocalStorage(STORAGE_KEYS.STATIONS, initialStations)
@@ -401,28 +392,6 @@ export default function Dashboard() {
       });
       setTempItems(quantities);
       setAddItemsOpen(true);
-    }
-  };
-
-  const handleAddCustomItem = async (name: string, price: number) => {
-    try {
-      const result = await addCustomItemMutation.mutateAsync({
-        name,
-        price: price.toFixed(2),
-        category: "Custom",
-      });
-      
-      setTempItems((prev) => ({ ...prev, [result.id]: 1 }));
-      toast({
-        title: "Custom Item Added",
-        description: `${name} ($${price.toFixed(2)}) added to cart`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add custom item",
-        variant: "destructive",
-      });
     }
   };
 
@@ -843,7 +812,6 @@ export default function Dashboard() {
                 return { ...prev, [itemId]: newCount };
               })
             }
-            onAddCustomItem={handleAddCustomItem}
             onConfirm={handleConfirmItems}
             squareConnected={!!squareStatus?.connected}
             onConnectSquare={async () => {

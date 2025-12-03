@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Plus, Minus, ShoppingBag, DollarSign, Link as LinkIcon } from "lucide-react";
+import { Plus, Minus, ShoppingBag, Link as LinkIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export interface MenuItem {
   id: string;
@@ -30,7 +25,6 @@ interface AddItemsDialogProps {
   selectedItems: { [itemId: string]: number };
   onAddItem: (itemId: string) => void;
   onRemoveItem: (itemId: string) => void;
-  onAddCustomItem: (name: string, price: number) => void;
   onConfirm: () => void;
   squareConnected?: boolean;
   onConnectSquare?: () => void;
@@ -44,13 +38,10 @@ export function AddItemsDialog({
   selectedItems,
   onAddItem,
   onRemoveItem,
-  onAddCustomItem,
   onConfirm,
   squareConnected = true,
   onConnectSquare,
 }: AddItemsDialogProps) {
-  const [customItemName, setCustomItemName] = useState("");
-  const [customItemPrice, setCustomItemPrice] = useState("");
 
   const totalItems = Object.values(selectedItems).reduce((sum, count) => sum + count, 0);
 
@@ -95,72 +86,17 @@ export function AddItemsDialog({
     .filter(category => category.toUpperCase() !== "GAMING")
     .sort();
 
-  const handleAddCustomItem = () => {
-    const price = parseFloat(customItemPrice);
-    if (customItemName.trim() && !isNaN(price) && price > 0) {
-      onAddCustomItem(customItemName.trim(), price);
-      setCustomItemName("");
-      setCustomItemPrice("");
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col" data-testid="dialog-add-items">
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">Add Items to {stationName}</DialogTitle>
           <DialogDescription>
-            Select items or add a custom item to the customer's tab
+            Select items from your Square catalog to add to the customer's tab
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-          <Card className="p-4 bg-muted/50">
-            <div className="space-y-3">
-              <h3 className="font-semibold text-sm">Add Custom Item</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-2 space-y-2">
-                  <Label htmlFor="custom-item-name" className="text-xs">Item Name</Label>
-                  <Input
-                    id="custom-item-name"
-                    placeholder="e.g., Extra napkins, Custom order"
-                    value={customItemName}
-                    onChange={(e) => setCustomItemName(e.target.value)}
-                    data-testid="input-custom-item-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="custom-item-price" className="text-xs">Price</Label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="custom-item-price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        className="pl-8"
-                        value={customItemPrice}
-                        onChange={(e) => setCustomItemPrice(e.target.value)}
-                        data-testid="input-custom-item-price"
-                      />
-                    </div>
-                    <Button
-                      onClick={handleAddCustomItem}
-                      disabled={!customItemName.trim() || !customItemPrice || parseFloat(customItemPrice) <= 0}
-                      data-testid="button-add-custom-item"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Separator />
-
           <div className="space-y-6 pb-4">
             {categories.map((category) => (
               <div key={category} className="space-y-3">

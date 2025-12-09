@@ -1,14 +1,10 @@
-import { type User, type InsertUser, type MenuItem, type InsertMenuItem, type SquareToken, type InsertSquareToken, type OAuthState, type InsertOAuthState } from "@shared/schema";
+import { type MenuItem, type InsertMenuItem, type SquareToken, type InsertSquareToken, type OAuthState, type InsertOAuthState } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 // modify the interface with any CRUD methods
 // you might need
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
   // Menu items CRUD
   getAllMenuItems(): Promise<MenuItem[]>;
   getMenuItem(id: string): Promise<MenuItem | undefined>;
@@ -31,29 +27,11 @@ export interface IStorage {
 }
 
 // Reference: blueprint:javascript_database
-import { users, menuItems, squareTokens, oauthStates } from "@shared/schema";
+import { menuItems, squareTokens, oauthStates } from "@shared/schema";
 import { db } from "./db";
 import { eq, count, lt, sql as drizzleSql } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
-  }
-
   // Menu items CRUD
   async getAllMenuItems(): Promise<MenuItem[]> {
     return await db.select().from(menuItems);

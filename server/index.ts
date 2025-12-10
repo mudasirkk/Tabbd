@@ -69,11 +69,7 @@ app.use((req, res, next) => {
   }, () => {
     log(`[express] Server running at: http://localhost:${port}`);
     
-    // Seed menu items in the background without blocking server startup
-    import("./storage").then(({ storage }) => {
-      storage.seedMenuItems().catch((error) => {
-        log(`Failed to seed menu items: ${error.message}`);
-      });
-    });
+    // Menu items are now store-scoped and will be seeded per-store
+    // when stores are created or connect Square
   });
 })();

@@ -16,49 +16,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Generate OAuth state for CSRF protection
-  app.get("/api/square/oauth/start", async (req, res) => {
-    console.log("[Square OAuth] Generating state...");
-
-    const state = randomBytes(32).toString("hex");
-
-    console.log("[Square OAuth] State:", state);
-
+  app.get("/api/square/oauth/start", requireAuth, async (req, res) => {
+    const storeId = getStoreId(req);
+    const csrf = randomBytes(32).toString("hex");
+  
+    const state = `${storeId}:${csrf}`;
+  
     res.json({
-      state: state,
+      state,
       baseURL: "https://connect.squareup.com/",
       appId: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
     });
   });
+  
 
   // Square OAuth callback
-  app.get("/api/square/oauth/callback", requireAuth, async (req, res) => {
+  app.get("/api/square/oauth/callback", async (req, res) => {
+    const { code, error, error_description, state } = req.query;
+  
+    if (!state || typeof state !== "string") {
+      return res.status(400).json({ error: "invalid_state" });
+    }
+  
+    const [storeId, csrfToken] = state.split(":");
+  
+    if (!storeId) {
+      return res.status(400).json({
+        error: "missing_store_id",
+        message: "Store ID missing from Square OAuth state",
+      });
+    }
+  
+    if (error) {
+      return res
+        .status(400)
+        .send(`Authorization failed: ${error_description || error}`);
+    }
+  
+    if (!code) {
+      return res.status(400).send("Missing authorization code");
+    }
+  
     try {
-      const { code, error, error_description } = req.query;
-      const storeId = getStoreId(req); // Get storeId from authenticated session
-
-      console.log("[Square OAuth] Callback received");
-
-      // Handle Square authorization denial
-      if (error) {
-        console.error(
-          "[Square OAuth] Error from Square:",
-          error_description || error,
-        );
-        return res
-          .status(400)
-          .send(`Authorization failed: ${error_description || error}`);
-      }
-
-      if (!code) {
-        console.error("[Square OAuth] Missing authorization code");
-        return res.status(400).send("Missing authorization code");
-      }
-
-      console.log("[Square OAuth] Exchanging code for token...");
-
-      // Exchange authorization code for access token
+      // ===========================
+      //  TOKEN EXCHANGE
+      // ===========================
       const tokenResponse = await fetch(
-        "https://connect.squareup.com/oauth2/token",
+        "https://connect.squareupsandbox.com/oauth2/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -67,89 +71,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
             client_secret: process.env.SQUARE_APPLICATION_SECRET,
             code,
             grant_type: "authorization_code",
-            redirect_uri: "https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback",
+            redirect_uri:
+              "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback",
           }),
-        },
+        }
       );
-
+  
       const tokenData = await tokenResponse.json();
-
+  
       console.log(
         "[Square OAuth] Full token response:",
-        JSON.stringify(tokenData, null, 2),
+        JSON.stringify(tokenData, null, 2)
       );
-
+  
       if (tokenData.error) {
-        console.error("[Square OAuth] Error exchanging code:", tokenData);
         return res.status(400).json(tokenData);
       }
-
-      console.log("[Square OAuth] Tokens received successfully");
-      console.log(
-        "[Square OAuth] Access token:",
-        tokenData.access_token ? "present" : "MISSING",
-      );
-      console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
-
-      // Validate all required fields exist
+  
       if (!tokenData.access_token || !tokenData.merchant_id) {
-        console.error("[Square OAuth] ERROR: Missing required fields!");
-        console.error("[Square OAuth] access_token:", tokenData.access_token);
-        console.error("[Square OAuth] merchant_id:", tokenData.merchant_id);
         return res.status(500).json({
           error: "Invalid token response from Square",
-          tokenData: tokenData,
+          tokenData,
         });
       }
-
-      // Save tokens to database - now with storeId
+  
+      // Save tokens
       await storage.saveSquareToken(storeId, {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || null,
         expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
         merchantId: tokenData.merchant_id,
       });
-
-      console.log("[Square OAuth] Tokens saved to database");
-
-      // Automatically sync menu from Square catalog
-      console.log("[Square OAuth] Starting automatic menu sync...");
-      const syncResult = await syncMenuFromSquare(tokenData.access_token, storeId);
-      if (syncResult.success) {
-        console.log(`[Square OAuth] Menu synced successfully: ${syncResult.itemCount} items imported`);
-      } else {
-        console.error("[Square OAuth] Menu sync failed:", syncResult.error);
-      }
-
-      // Redirect user to success page
-      res.send(`
+  
+      console.log("[Square OAuth] Tokens saved to DB");
+  
+      // Sync menu
+      const syncResult = await syncMenuFromSquare(
+        tokenData.access_token,
+        storeId
+      );
+  
+      // Success page
+      return res.send(`
         <!DOCTYPE html>
         <html>
           <head><title>Square Connected</title></head>
           <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
             <h2>Square account connected successfully!</h2>
-            <p>${syncResult.success ? `${syncResult.itemCount} menu items imported from your catalog.` : 'Menu sync is pending.'}</p>
+            <p>${
+              syncResult.success
+                ? `${syncResult.itemCount} menu items imported.`
+                : "Menu sync still processing."
+            }</p>
             <script>
               window.location.href = '/?square_connected=true';
             </script>
           </body>
         </html>
       `);
-    } catch (error) {
-      console.error("[Square OAuth] Callback error:", error);
-
-      // Return the error structure for debugging
-      if (error && typeof error === "object") {
-        return res.status(500).json({
-          error: "OAuth callback failed",
-          details: error,
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-
-      res.status(500).send("Server error during OAuth callback");
+    } catch (err) {
+      console.error("[Square OAuth] Callback error:", err);
+      return res.status(500).json({
+        error: "OAuth callback failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        details: err,
+      });
     }
   });
+  
 
   // ============ FIREBASE AUTHENTICATION ROUTES ============
 

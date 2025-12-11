@@ -93,7 +93,7 @@ interface SquareStatus {
 export default function Dashboard() {
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   
   const { data: squareStatus, isLoading: squareStatusLoading } = useQuery<SquareStatus>({
     queryKey: ["/api/square/status"],
@@ -601,96 +601,94 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b sticky top-0 bg-background z-10">
-  <div className="container mx-auto px-4 py-4">
-    <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-bold" data-testid="text-app-title">
-          Rack Em Up
-        </h1>
-        <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
-      </div>
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
 
-      {/* RIGHT SIDE CONTROLS */}
-      <div className="flex items-center gap-4">
+            {/* LEFT — App Branding */}
+            <div>
+              <h1 className="text-2xl font-bold">Rack Em Up</h1>
+              <p className="text-sm text-muted-foreground">
+                Pool Cafe Management
+              </p>
+            </div>
 
-        {/* 🔥 LOGOUT BUTTON (NEW) */}
-        <Button
-          variant="outline"
-          onClick={async () => {
-          await logout();
-          window.location.href = "/signin";
-          }}
-        >
-        Logout
-        </Button>
+            {/* RIGHT — User info + Controls */}
+            <div className="flex items-center gap-6">
 
+              {/* Logged-in User Email */}
+              <div className="hidden sm:block text-right">
+                <p className="text-xs text-muted-foreground">Signed in as</p>
+                <p className="font-semibold">{user?.email}</p>
+              </div>
 
-        {/* SQUARE LOGIC – unchanged */}
-        {squareStatus?.connected ? (
-          <Button
-            variant="destructive"
-            onClick={async () => {
-              try {
-                await apiRequest("DELETE", "/api/square/disconnect");
-                queryClient.invalidateQueries({ queryKey: ["/api/square/status"] });
-                toast({
-                  title: "Disconnected",
-                  description: "Square account has been disconnected",
-                });
-              } catch (error) {
-                toast({
-                  title: "Error",
-                  description: "Failed to disconnect Square account",
-                  variant: "destructive",
-                });
-              }
-            }}
-            data-testid="button-disconnect-square"
-          >
-            Disconnect Square
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            onClick={async () => {
-              try {
-                const response = await fetch('/api/square/oauth/start');
-                const data = await response.json();
-                const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT';
-                const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
-                const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-                window.location.href = authUrl;
-              } catch (error) {
-                toast({
-                  title: "Error",
-                  description: "Failed to start OAuth flow",
-                  variant: "destructive",
-                });
-              }
-            }}
-            data-testid="button-connect-square"
-          >
-            Connect to Square
-          </Button>
-        )}
+              {/* Logout Button */}
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  await logout();
+                  window.location.href = "/signin";
+                }}
+              >
+                Logout
+              </Button>
 
-        <div className="text-right hidden sm:block">
-          <p className="text-sm text-muted-foreground">Active Stations</p>
-          <p className="text-xl font-mono font-bold" data-testid="text-active-count">
-            {activeStationsCount} / {stations.length}
-          </p>
+              {/* Square Controls */}
+              {squareStatus?.connected ? (
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    try {
+                      await apiRequest("DELETE", "/api/square/disconnect");
+                      queryClient.invalidateQueries({queryKey: ["/api/square/status"],});
+                      toast({
+                        title: "Disconnected",
+                        description: "Square account disconnected",
+                      });
+                    } catch {
+                      toast({
+                        title: "Error",
+                        description: "Failed to disconnect Square",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  Disconnect Square
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const data = await apiRequest("GET", "/api/square/oauth/start");
+                  
+                      const scopes =
+                        "MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT";
+                  
+                      const redirectUri =
+                        "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback";
+                  
+                        const authUrl = `https://connect.squareupsandbox.com/oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(
+                          "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback"
+                        )}`;
+                  
+                      window.location.href = authUrl;
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to start OAuth flow",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  Connect to Square
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-
-        <div className="text-right hidden sm:block">
-          <p className="text-sm text-muted-foreground">Current Time</p>
-          <p className="text-xl font-mono font-bold" data-testid="text-current-time">
-            {new Date(currentTime).toLocaleTimeString()}
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
+      </header>
 
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -810,22 +808,12 @@ export default function Dashboard() {
             }
             onConfirm={handleConfirmItems}
             squareConnected={!!squareStatus?.connected}
-            onConnectSquare={async () => {
-              try {
-                const response = await fetch('/api/square/oauth/start');
-                const data = await response.json();
-                const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT';
-                const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
-                const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-                window.location.href = authUrl;
-              } catch (error) {
-                toast({
-                  title: "Error",
-                  description: "Failed to start OAuth flow",
-                  variant: "destructive",
-                });
-              }
-            }}
+            onConnectSquare={() => {
+              toast({
+                title: "Square Required",
+                description: "Please connect your Square account from the top-right button.",
+              });
+            }}            
           />
 
           <CheckoutDialog

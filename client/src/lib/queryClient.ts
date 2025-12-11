@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { auth } from "./firebase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,9 +13,20 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<any> {
+  const user = auth.currentUser;
+  const idToken = user ? await user.getIdToken() : null;
+
+  const headers: Record<string, string> = {};
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (idToken) {
+    headers["Authorization"] = `Bearer ${idToken}`;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -23,22 +35,28 @@ export async function apiRequest(
 
   console.log(`[API] ${method} ${url} ${res.status}`);
 
-  // For DELETE requests with 204 No Content, return null
   if (res.status === 204) {
     return null;
   }
 
-  // Parse JSON response for other requests
   return await res.json();
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
+  on401: "returnNull" | "throw";
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const user = auth.currentUser;
+    const idToken = user ? await user.getIdToken() : null;
+
+    const headers: Record<string, string> = {};
+    if (idToken) {
+      headers["Authorization"] = `Bearer ${idToken}`;
+    }
+
     const res = await fetch(queryKey.join("/") as string, {
+      headers,
       credentials: "include",
     });
 
@@ -57,7 +75,12 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: 0,
-      retry: 3,
+      retry: (failureCount, error) => {
+        if (error instanceof Error && error.message.includes("401")) {
+          return false;
+        }
+        return failureCount < 3;
+      },
       retryDelay: 1000,
     },
     mutations: {

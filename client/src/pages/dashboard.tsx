@@ -9,6 +9,7 @@ import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { TransferSessionDialog } from "@/components/TransferSessionDialog";
 import { PaymentProcessingOverlay } from "@/components/PaymentProcessingOverlay";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthProvider";
 import {
   Sheet,
   SheetContent,
@@ -48,23 +49,6 @@ interface Station {
 const HOURLY_RATE = 16;
 const RATE_PER_SECOND = HOURLY_RATE / 3600;
 
-const initialMenuItems: MenuItem[] = [
-  { id: "1", name: "Vanilla Latte", price: 4.99, category: "Lattes" },
-  { id: "2", name: "Caramel Latte", price: 4.99, category: "Lattes" },
-  { id: "3", name: "Brown Sugar Latte", price: 4.99, category: "Lattes" },
-  { id: "4", name: "Biscoff Latte", price: 4.99, category: "Lattes" },
-  { id: "5", name: "Pistachio Latte", price: 4.99, category: "Lattes" },
-  { id: "6", name: "Adeni Tea", price: 4.49, category: "Tea" },
-  { id: "7", name: "Berry Hibiscus Refresher", price: 4.49, category: "Refreshers" },
-  { id: "8", name: "Mango Dragon Fruit Refresher", price: 4.49, category: "Refreshers" },
-  { id: "9", name: "Strawberry Acai Refresher", price: 4.49, category: "Refreshers" },
-  { id: "10", name: "Pomegranate Refresher", price: 4.49, category: "Refreshers" },
-  { id: "11", name: "Blue Citrus Refresher", price: 4.49, category: "Refreshers" },
-  { id: "12", name: "Slushie", price: 2.99, category: "Slushies" },
-  { id: "13", name: "Cookies", price: 1.99, category: "Dessert" },
-  { id: "14", name: "Milk Cake", price: 5.99, category: "Dessert" },
-  { id: "15", name: "Banana Pudding", price: 4.49, category: "Dessert" },
-];
 
 // IMPORTANT: When updating station definitions, also update the correctNames map
 // in the station migration effect below (search for "correctNames")
@@ -109,6 +93,7 @@ interface SquareStatus {
 export default function Dashboard() {
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const { user, logout } = useAuth();
   
   const { data: squareStatus, isLoading: squareStatusLoading } = useQuery<SquareStatus>({
     queryKey: ["/api/square/status"],
@@ -618,33 +603,55 @@ export default function Dashboard() {
       <header className="border-b sticky top-0 bg-background z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
+
+            {/* LEFT — App Branding */}
             <div>
-              <h1 className="text-2xl font-bold" data-testid="text-app-title">
-                Rack Em Up
-              </h1>
-              <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
+              <h1 className="text-2xl font-bold">Rack Em Up</h1>
+              <p className="text-sm text-muted-foreground">
+                Pool Cafe Management
+              </p>
             </div>
-            <div className="flex items-center gap-4">
+
+            {/* RIGHT — User info + Controls */}
+            <div className="flex items-center gap-6">
+
+              {/* Logged-in User Email */}
+              <div className="hidden sm:block text-right">
+                <p className="text-xs text-muted-foreground">Signed in as</p>
+                <p className="font-semibold">{user?.email}</p>
+              </div>
+
+              {/* Logout Button */}
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  await logout();
+                  window.location.href = "/signin";
+                }}
+              >
+                Logout
+              </Button>
+
+              {/* Square Controls */}
               {squareStatus?.connected ? (
                 <Button
                   variant="destructive"
                   onClick={async () => {
                     try {
                       await apiRequest("DELETE", "/api/square/disconnect");
-                      queryClient.invalidateQueries({ queryKey: ["/api/square/status"] });
+                      queryClient.invalidateQueries({queryKey: ["/api/square/status"],});
                       toast({
                         title: "Disconnected",
-                        description: "Square account has been disconnected",
+                        description: "Square account disconnected",
                       });
-                    } catch (error) {
+                    } catch {
                       toast({
                         title: "Error",
-                        description: "Failed to disconnect Square account",
+                        description: "Failed to disconnect Square",
                         variant: "destructive",
                       });
                     }
                   }}
-                  data-testid="button-disconnect-square"
                 >
                   Disconnect Square
                 </Button>
@@ -652,21 +659,21 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   onClick={async () => {
-                    console.log('[Frontend] Starting Square OAuth...');
                     try {
-                      const response = await fetch('/api/square/oauth/start');
-                      const data = await response.json();
-                      
-                      console.log('[Frontend] Received state:', data.state);
-                      
-                      const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT';
-                      const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
-                      const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-                      
-                      console.log('[Frontend] Redirecting to Square...');
+                      const data = await apiRequest("GET", "/api/square/oauth/start");
+                  
+                      const scopes =
+                        "MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT";
+                  
+                      const redirectUri =
+                        "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback";
+                  
+                        const authUrl = `https://connect.squareupsandbox.com/oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(
+                          "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback"
+                        )}`;
+                  
                       window.location.href = authUrl;
                     } catch (error) {
-                      console.error('[Frontend] Error starting OAuth:', error);
                       toast({
                         title: "Error",
                         description: "Failed to start OAuth flow",
@@ -674,23 +681,10 @@ export default function Dashboard() {
                       });
                     }
                   }}
-                  data-testid="button-connect-square"
                 >
                   Connect to Square
                 </Button>
               )}
-              <div className="text-right hidden sm:block">
-                <p className="text-sm text-muted-foreground">Active Stations</p>
-                <p className="text-xl font-mono font-bold" data-testid="text-active-count">
-                  {activeStationsCount} / {stations.length}
-                </p>
-              </div>
-              <div className="text-right hidden sm:block">
-                <p className="text-sm text-muted-foreground">Current Time</p>
-                <p className="text-xl font-mono font-bold" data-testid="text-current-time">
-                  {new Date(currentTime).toLocaleTimeString()}
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -814,22 +808,12 @@ export default function Dashboard() {
             }
             onConfirm={handleConfirmItems}
             squareConnected={!!squareStatus?.connected}
-            onConnectSquare={async () => {
-              try {
-                const response = await fetch('/api/square/oauth/start');
-                const data = await response.json();
-                const scopes = 'MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT';
-                const redirectUri = 'https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback';
-                const authUrl = `${data.baseURL}oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-                window.location.href = authUrl;
-              } catch (error) {
-                toast({
-                  title: "Error",
-                  description: "Failed to start OAuth flow",
-                  variant: "destructive",
-                });
-              }
-            }}
+            onConnectSquare={() => {
+              toast({
+                title: "Square Required",
+                description: "Please connect your Square account from the top-right button.",
+              });
+            }}            
           />
 
           <CheckoutDialog

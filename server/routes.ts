@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+import { requireAuth, getStoreId } from "./middleware/auth";
+import { auth } from "./firebase";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   if (!process.env.SQUARE_APPLICATION_SECRET) {
@@ -14,48 +16,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Generate OAuth state for CSRF protection
-  app.get("/api/square/oauth/start", async (req, res) => {
-    console.log("[Square OAuth] Generating state...");
-
-    const state = randomBytes(32).toString("hex");
-
-    console.log("[Square OAuth] State:", state);
-
+  app.get("/api/square/oauth/start", requireAuth, async (req, res) => {
+    const storeId = getStoreId(req);
+    const csrf = randomBytes(32).toString("hex");
+  
+    const state = `${storeId}:${csrf}`;
+  
     res.json({
-      state: state,
+      state,
       baseURL: "https://connect.squareup.com/",
       appId: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
     });
   });
+  
 
   // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
+    const { code, error, error_description, state } = req.query;
+  
+    if (!state || typeof state !== "string") {
+      return res.status(400).json({ error: "invalid_state" });
+    }
+  
+    const [storeId, csrfToken] = state.split(":");
+  
+    if (!storeId) {
+      return res.status(400).json({
+        error: "missing_store_id",
+        message: "Store ID missing from Square OAuth state",
+      });
+    }
+  
+    if (error) {
+      return res
+        .status(400)
+        .send(`Authorization failed: ${error_description || error}`);
+    }
+  
+    if (!code) {
+      return res.status(400).send("Missing authorization code");
+    }
+  
     try {
-      const { code, error, error_description } = req.query;
-
-      console.log("[Square OAuth] Callback received");
-
-      // Handle Square authorization denial
-      if (error) {
-        console.error(
-          "[Square OAuth] Error from Square:",
-          error_description || error,
-        );
-        return res
-          .status(400)
-          .send(`Authorization failed: ${error_description || error}`);
-      }
-
-      if (!code) {
-        console.error("[Square OAuth] Missing authorization code");
-        return res.status(400).send("Missing authorization code");
-      }
-
-      console.log("[Square OAuth] Exchanging code for token...");
-
-      // Exchange authorization code for access token
+      // ===========================
+      //  TOKEN EXCHANGE
+      // ===========================
       const tokenResponse = await fetch(
-        "https://connect.squareup.com/oauth2/token",
+        "https://connect.squareupsandbox.com/oauth2/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -64,94 +71,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
             client_secret: process.env.SQUARE_APPLICATION_SECRET,
             code,
             grant_type: "authorization_code",
-            redirect_uri: "https://pool-cafe-manager-TalhaNadeem001.replit.app/api/square/oauth/callback",
+            redirect_uri:
+              "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback",
           }),
-        },
+        }
       );
-
+  
       const tokenData = await tokenResponse.json();
-
+  
       console.log(
         "[Square OAuth] Full token response:",
-        JSON.stringify(tokenData, null, 2),
+        JSON.stringify(tokenData, null, 2)
       );
-
+  
       if (tokenData.error) {
-        console.error("[Square OAuth] Error exchanging code:", tokenData);
         return res.status(400).json(tokenData);
       }
-
-      console.log("[Square OAuth] Tokens received successfully");
-      console.log(
-        "[Square OAuth] Access token:",
-        tokenData.access_token ? "present" : "MISSING",
-      );
-      console.log("[Square OAuth] Merchant ID:", tokenData.merchant_id);
-
-      // Validate all required fields exist
+  
       if (!tokenData.access_token || !tokenData.merchant_id) {
-        console.error("[Square OAuth] ERROR: Missing required fields!");
-        console.error("[Square OAuth] access_token:", tokenData.access_token);
-        console.error("[Square OAuth] merchant_id:", tokenData.merchant_id);
         return res.status(500).json({
           error: "Invalid token response from Square",
-          tokenData: tokenData,
+          tokenData,
         });
       }
-
-      // Save tokens to database
-      await storage.saveSquareToken({
+  
+      // Save tokens
+      await storage.saveSquareToken(storeId, {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || null,
         expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
         merchantId: tokenData.merchant_id,
       });
-
-      console.log("[Square OAuth] Tokens saved to database");
-
-      // Automatically sync menu from Square catalog
-      console.log("[Square OAuth] Starting automatic menu sync...");
-      const syncResult = await syncMenuFromSquare(tokenData.access_token);
-      if (syncResult.success) {
-        console.log(`[Square OAuth] Menu synced successfully: ${syncResult.itemCount} items imported`);
-      } else {
-        console.error("[Square OAuth] Menu sync failed:", syncResult.error);
-      }
-
-      // Redirect user to success page
-      res.send(`
+  
+      console.log("[Square OAuth] Tokens saved to DB");
+  
+      // Sync menu
+      const syncResult = await syncMenuFromSquare(
+        tokenData.access_token,
+        storeId
+      );
+  
+      // Success page
+      return res.send(`
         <!DOCTYPE html>
         <html>
           <head><title>Square Connected</title></head>
           <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
             <h2>Square account connected successfully!</h2>
-            <p>${syncResult.success ? `${syncResult.itemCount} menu items imported from your catalog.` : 'Menu sync is pending.'}</p>
+            <p>${
+              syncResult.success
+                ? `${syncResult.itemCount} menu items imported.`
+                : "Menu sync still processing."
+            }</p>
             <script>
               window.location.href = '/?square_connected=true';
             </script>
           </body>
         </html>
       `);
-    } catch (error) {
-      console.error("[Square OAuth] Callback error:", error);
+    } catch (err) {
+      console.error("[Square OAuth] Callback error:", err);
+      return res.status(500).json({
+        error: "OAuth callback failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        details: err,
+      });
+    }
+  });
+  
 
-      // Return the error structure for debugging
-      if (error && typeof error === "object") {
-        return res.status(500).json({
-          error: "OAuth callback failed",
-          details: error,
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
+  // ============ FIREBASE AUTHENTICATION ROUTES ============
+
+  // POST /api/auth/verify - Verify Firebase token and create/update store
+  app.post("/api/auth/verify", async (req, res) => {
+    try {
+      const { idToken } = req.body;
+      if (!idToken) {
+        return res.status(400).json({ error: "ID token required" });
       }
 
-      res.status(500).send("Server error during OAuth callback");
+      // Verify token with Firebase Admin
+      const decodedToken = await auth.verifyIdToken(idToken);
+      
+      // Get or create store in database
+      let store = await storage.getStoreById(decodedToken.uid);
+      
+      if (!store) {
+        // Create new store
+        store = await storage.createStore({
+          id: decodedToken.uid,
+          name: decodedToken.name || decodedToken.email?.split('@')[0] || "Store",
+          email: decodedToken.email || "",
+          avatar: decodedToken.picture || null,
+        });
+      } else {
+        // Update store info (in case name/avatar changed)
+        store = await storage.updateStore(decodedToken.uid, {
+          name: decodedToken.name || store.name,
+          email: decodedToken.email || store.email,
+          avatar: decodedToken.picture || store.avatar,
+        }) || store;
+      }
+
+      res.json(store);
+    } catch (error) {
+      console.error("Error verifying token:", error);
+      res.status(401).json({ error: "Invalid token" });
     }
   });
 
-  // GET /api/square/status - Check Square connection status
-  app.get("/api/square/status", async (req, res) => {
+  // GET /api/auth/me - Get current store (requires auth middleware)
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
     try {
-      const token = await storage.getSquareToken();
+      const storeId = getStoreId(req);
+      const store = await storage.getStoreById(storeId);
+      if (!store) {
+        return res.status(404).json({ error: "Store not found" });
+      }
+      res.json(store);
+    } catch (error) {
+      console.error("Error fetching store:", error);
+      res.status(500).json({ error: "Failed to fetch store" });
+    }
+  });
+
+  // ============ PROTECTED ROUTES ============
+  // Update all existing routes to use requireAuth and getStoreId
+
+  // GET /api/square/status
+  app.get("/api/square/status", requireAuth, async (req, res) => {
+    try {
+      const storeId = getStoreId(req);
+      const token = await storage.getSquareToken(storeId);
       res.json({
         connected: !!token,
         merchantId: token?.merchantId || null,
@@ -163,13 +214,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/square/disconnect - Disconnect Square account
-  app.delete("/api/square/disconnect", async (req, res) => {
+  app.delete("/api/square/disconnect", requireAuth, async (req, res) => {
     try {
-      await storage.deleteSquareToken();
+      const storeId = getStoreId(req);
+      await storage.deleteSquareToken(storeId);
       console.log("[Square] Account disconnected");
       
       // Clear all menu items when disconnecting
-      await storage.clearAllMenuItems();
+      await storage.clearAllMenuItems(storeId);
       console.log("[Square] Menu items cleared");
       
       res.json({ success: true, message: "Square account disconnected and menu cleared" });
@@ -179,10 +231,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/square/locations - Fetch Square locations
-  app.get("/api/square/locations", async (req, res) => {
+  // GET /api/square/locations
+  app.get("/api/square/locations", requireAuth, async (req, res) => {
     try {
-      const token = await storage.getSquareToken();
+      const storeId = getStoreId(req);
+      const token = await storage.getSquareToken(storeId);
       
       if (!token) {
         return res.status(401).json({ error: "Square not connected" });
@@ -218,10 +271,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/square/devices - Fetch paired Square Terminal devices
-  app.get("/api/square/devices", async (req, res) => {
+  // GET /api/square/devices
+  app.get("/api/square/devices", requireAuth, async (req, res) => {
     try {
-      const token = await storage.getSquareToken();
+      const storeId = getStoreId(req);
+      const token = await storage.getSquareToken(storeId);
       
       if (!token) {
         return res.status(401).json({ error: "Square not connected" });
@@ -257,10 +311,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // POST /api/square/terminals/checkouts - Send payment to Square Terminal reader
-  app.post("/api/square/terminals/checkouts", async (req, res) => {
+  // POST /api/square/terminals/checkouts
+  app.post("/api/square/terminals/checkouts", requireAuth, async (req, res) => {
     try {
-      const token = await storage.getSquareToken();
+      const storeId = getStoreId(req);
+      const token = await storage.getSquareToken(storeId);
       
       if (!token) {
         return res.status(401).json({ error: "Square not connected" });
@@ -339,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Helper function to sync menu items from Square catalog
-  async function syncMenuFromSquare(accessToken: string): Promise<{ success: boolean; itemCount: number; error?: string }> {
+  async function syncMenuFromSquare(accessToken: string, storeId: string): Promise<{ success: boolean; itemCount: number; error?: string }> {
     try {
       console.log("[Square Sync] Starting menu sync from Square catalog...");
 
@@ -378,7 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[Square Sync] Found ${items.length} items in Square catalog`);
 
       // Clear existing menu items
-      await storage.clearAllMenuItems();
+      await storage.clearAllMenuItems(storeId);
       console.log("[Square Sync] Cleared existing menu items");
 
       // Import items from Square
@@ -398,6 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const categoryName = categoryId ? categoryMap[categoryId] || "Other" : "Other";
 
         await storage.createMenuItem({
+          storeId,
           name: itemData.name || "Unnamed Item",
           price: priceInDollars,
           category: categoryName,
@@ -413,10 +469,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // GET /api/square/catalog/items - Fetch menu items from Square
-  app.get("/api/square/catalog/items", async (req, res) => {
+  // GET /api/square/catalog/items
+  app.get("/api/square/catalog/items", requireAuth, async (req, res) => {
     try {
-      const token = await storage.getSquareToken();
+      const storeId = getStoreId(req);
+      const token = await storage.getSquareToken(storeId);
       
       if (!token) {
         return res.status(401).json({ error: "Square not connected" });
@@ -462,10 +519,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Menu Items API Routes
 
-  // GET /api/menu-items - Get all menu items
-  app.get("/api/menu-items", async (req, res) => {
+  // GET /api/menu-items
+  app.get("/api/menu-items", requireAuth, async (req, res) => {
     try {
-      const items = await storage.getAllMenuItems();
+      const storeId = getStoreId(req);
+      const items = await storage.getAllMenuItems(storeId);
       res.json(items);
     } catch (error) {
       console.error("Error fetching menu items:", error);
@@ -473,11 +531,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // POST /api/menu-items - Create a new menu item
-  app.post("/api/menu-items", async (req, res) => {
+  // POST /api/menu-items
+  app.post("/api/menu-items", requireAuth, async (req, res) => {
     try {
+      const storeId = getStoreId(req);
       const validatedData = insertMenuItemSchema.parse(req.body);
-      const item = await storage.createMenuItem(validatedData);
+      const item = await storage.createMenuItem({ ...validatedData, storeId });
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating menu item:", error);
@@ -485,12 +544,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PATCH /api/menu-items/:id - Update a menu item
-  app.patch("/api/menu-items/:id", async (req, res) => {
+  // PATCH /api/menu-items/:id
+  app.patch("/api/menu-items/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
+      const storeId = getStoreId(req);
       const validatedData = insertMenuItemSchema.parse(req.body);
-      const item = await storage.updateMenuItem(id, validatedData);
+      const item = await storage.updateMenuItem(id, storeId, validatedData);
       if (!item) {
         return res.status(404).json({ error: "Menu item not found" });
       }
@@ -504,11 +564,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // DELETE /api/menu-items/:id - Delete a menu item
-  app.delete("/api/menu-items/:id", async (req, res) => {
+  // DELETE /api/menu-items/:id
+  app.delete("/api/menu-items/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteMenuItem(id);
+      const storeId = getStoreId(req);
+      const deleted = await storage.deleteMenuItem(id, storeId);
       if (!deleted) {
         return res.status(404).json({ error: "Menu item not found" });
       }
@@ -520,9 +581,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/menu-items - Clear all menu items
-  app.delete("/api/menu-items", async (req, res) => {
+  app.delete("/api/menu-items", requireAuth, async (req, res) => {
     try {
-      await storage.clearAllMenuItems();
+      const storeId = getStoreId(req);
+      await storage.clearAllMenuItems(storeId);
       res.status(204).send();
     } catch (error) {
       console.error("Error clearing menu items:", error);

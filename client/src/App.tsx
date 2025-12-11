@@ -1,31 +1,26 @@
 import { Switch, Route, Redirect } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
-import NotFound from "@/pages/not-found";
-
-function Router() {
-  return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/menu">
-        <Redirect to="/" />
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
+import SignIn from "@/pages/signin";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <Switch>
+      {/* Sign in page */}
+      <Route path="/signin" component={SignIn} />
+
+      {/* Protected home/dashboard */}
+      <Route path="/">
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      </Route>
+
+      {/* Catch-all redirect */}
+      <Route>
+        <Redirect to="/" />
+      </Route>
+    </Switch>
   );
 }
 

@@ -1,27 +1,25 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Route, Redirect } from "wouter";
 import Dashboard from "@/pages/dashboard";
 import SignIn from "@/pages/signin";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
-function App() {
+export default function App() {
   return (
-    <Switch>
-      {/* Sign in page */}
-      <Route path="/signin" component={SignIn} />
+    <>
+       {/* Public Route */}
+       <Route path="/signin" component={SignIn} />
 
-      {/* Protected home/dashboard */}
+      {/* Protected Dashboard */}
       <Route path="/">
         <ProtectedRoute>
           <Dashboard />
         </ProtectedRoute>
       </Route>
 
-      {/* Catch-all redirect */}
-      <Route>
+      {/* Catch-all */}
+      <Route path="*">
         <Redirect to="/" />
       </Route>
-    </Switch>
+    </>
   );
 }
-
-export default App;

@@ -93,6 +93,7 @@ interface SquareStatus {
 export default function Dashboard() {
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const { logout } = useAuth();
   
   const { data: squareStatus, isLoading: squareStatusLoading } = useQuery<SquareStatus>({
     queryKey: ["/api/square/status"],
@@ -616,13 +617,13 @@ export default function Dashboard() {
         <Button
           variant="outline"
           onClick={async () => {
-            const { logout } = useAuth();
-            await logout();
-            window.location.href = "/signin";
+          await logout();
+          window.location.href = "/signin";
           }}
         >
-          Logout
+        Logout
         </Button>
+
 
         {/* SQUARE LOGIC – unchanged */}
         {squareStatus?.connected ? (

@@ -9,8 +9,8 @@ import { auth } from "./firebase";
 
 const SQUARE_API_BASE =
   process.env.SQUARE_ENVIRONMENT === "sandbox"
-    ? "https://connect.squareupsandbox.com"
-    : "https://connect.squareup.com";
+  ? "https://connect.squareupsandbox.com/oauth2/authorize"
+  : "https://connect.squareup.com/oauth2/authorize";
 
 const SQUARE_OAUTH_BASE =
 process.env.SQUARE_ENVIRONMENT === "sandbox"
@@ -37,6 +37,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       state,
       baseURL: SQUARE_OAUTH_BASE,
       appId: process.env.SQUARE_APPLICATION_ID,
+      redirectUrl: process.env.SQUARE_REDIRECT_URL,
     });
   });
   

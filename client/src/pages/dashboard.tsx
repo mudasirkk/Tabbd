@@ -661,17 +661,18 @@ export default function Dashboard() {
                   onClick={async () => {
                     try {
                       const data = await apiRequest("GET", "/api/square/oauth/start");
-                  
+
                       const scopes =
-                        "MERCHANT_PROFILE_READ+PAYMENTS_WRITE+INVENTORY_READ+ITEMS_READ+DEVICE_CREDENTIAL_MANAGEMENT";
-                  
-                      const redirectUri =
-                        "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback";
-                  
-                        const authUrl = `https://connect.squareupsandbox.com/oauth2/authorize?client_id=${data.appId}&session=false&scope=${scopes}&state=${data.state}&redirect_uri=${encodeURIComponent(
-                          "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback"
-                        )}`;
-                  
+                        "MERCHANT_PROFILE_READ PAYMENTS_WRITE INVENTORY_READ ITEMS_READ DEVICE_CREDENTIAL_MANAGEMENT";
+
+                      const authUrl =
+                        `${data.baseURL}?` +
+                        `client_id=${data.appId}` +
+                        `&scope=${encodeURIComponent(scopes)}` +
+                        `&state=${encodeURIComponent(data.state)}` +
+                        `&redirect_uri=${encodeURIComponent(data.redirectUri)}` +
+                        `&session=false`;
+
                       window.location.href = authUrl;
                     } catch (error) {
                       toast({

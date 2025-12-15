@@ -677,6 +677,9 @@ export default function Dashboard() {
 
                       const data = await res.json();
 
+                      console.log("Square OAuth start response:", data);
+
+
                       const scopes =
                         "MERCHANT_PROFILE_READ PAYMENTS_WRITE INVENTORY_READ ITEMS_READ DEVICE_CREDENTIAL_MANAGEMENT";
 

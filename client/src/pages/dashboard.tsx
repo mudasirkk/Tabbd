@@ -670,7 +670,7 @@ export default function Dashboard() {
                         `client_id=${data.appId}` +
                         `&scope=${encodeURIComponent(scopes)}` +
                         `&state=${encodeURIComponent(data.state)}` +
-                        `&redirect_uri=${encodeURIComponent(data.redirectUri)}` +
+                        `&redirect_uri=${encodeURIComponent(data.redirectUrl)}` +
                         `&session=false`;
 
                       window.location.href = authUrl;

@@ -21,7 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   if (
     !process.env.SQUARE_APPLICATION_ID ||
     !process.env.SQUARE_APPLICATION_SECRET ||
-    !process.env.SQUARE_OAUTH_REDIRECT_URL
+    !process.env.SQUARE_REDIRECT_URL
   ) {
     throw new Error("Missing Square OAuth environment variables");
   }
@@ -82,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             client_secret: process.env.SQUARE_APPLICATION_SECRET,
             code,
             grant_type: "authorization_code",
-            redirect_uri: process.env.SQUARE_OAUTH_REDIRECT_URL,
+            redirect_uri: process.env.SQUARE_REDIRECT_URL,
           }),
         }
       );

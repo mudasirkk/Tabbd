@@ -4,11 +4,8 @@ import {
   type MenuItem, 
   type InsertMenuItem, 
   type SquareToken, 
-  type InsertSquareToken, 
-  type OAuthState, 
-  type InsertOAuthState 
+  type InsertSquareToken,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
 
 export interface IStorage {
   // Store CRUD
@@ -24,7 +21,6 @@ export interface IStorage {
   updateMenuItem(id: string, storeId: string, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined>;
   deleteMenuItem(id: string, storeId: string): Promise<boolean>;
   clearAllMenuItems(storeId: string): Promise<void>;
-  seedMenuItems(storeId: string): Promise<void>;
   
   // Square tokens (store-scoped)
   saveSquareToken(storeId: string, token: InsertSquareToken): Promise<SquareToken>;
@@ -32,15 +28,15 @@ export interface IStorage {
   deleteSquareToken(storeId: string): Promise<void>;
   
   // OAuth states (for Square OAuth)
-  saveOAuthState(state: InsertOAuthState): Promise<OAuthState>;
-  getOAuthState(state: string): Promise<OAuthState | undefined>;
-  deleteOAuthState(state: string): Promise<void>;
-  cleanupExpiredStates(): Promise<void>;
+  saveSquareOAuthState(storeId: string, csrf: string): Promise<void>;
+  verifySquareOAuthState(storeId: string, csrf: string): Promise<boolean>;
+  deleteSquareOAuthState(storeId: string): Promise<void>;
+  cleanupExpiredSquareOAuthStates(): Promise<void>;
 }
 
 import { stores, menuItems, squareTokens, oauthStates } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, count, lt } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   // Store methods
@@ -104,7 +100,7 @@ export class DatabaseStorage implements IStorage {
     // Note: This should also check storeId for security - consider updating signature
     const result = await db
       .delete(menuItems)
-      .where(eq(menuItems.id, id))
+      .where(and(eq(menuItems.id, id), eq(menuItems.storeId, storeId)))
       .returning();
     return result.length > 0;
   }
@@ -113,40 +109,47 @@ export class DatabaseStorage implements IStorage {
     await db.delete(menuItems).where(eq(menuItems.storeId, storeId));
   }
 
-  async seedMenuItems(storeId: string): Promise<void> {
-    const [result] = await db.select({ count: count() })
-      .from(menuItems)
-      .where(eq(menuItems.storeId, storeId));
-    
-    if (result.count > 0) {
-      return;
-    }
-
-    const defaultMenuItems: InsertMenuItem[] = [
-      { storeId, name: "TABLE (POOL/FOOSBALL)", price: "16.00", category: "Gaming" },
-      { storeId, name: "SOLO", price: "10.00", category: "Gaming" },
-      { storeId, name: "GAMING", price: "16.00", category: "Gaming" },
-      { storeId, name: "Vanilla Latte", price: "4.99", category: "Lattes" },
-      { storeId, name: "Caramel Latte", price: "4.99", category: "Lattes" },
-      { storeId, name: "Brown Sugar Latte", price: "4.99", category: "Lattes" },
-      { storeId, name: "Biscoff Latte", price: "4.99", category: "Lattes" },
-      { storeId, name: "Pistachio Latte", price: "4.99", category: "Lattes" },
-      { storeId, name: "Adeni Tea", price: "4.49", category: "Tea" },
-      { storeId, name: "Berry Hibiscus Refresher", price: "4.49", category: "Refreshers" },
-      { storeId, name: "Mango Dragon Fruit Refresher", price: "4.49", category: "Refreshers" },
-      { storeId, name: "Strawberry Acai Refresher", price: "4.49", category: "Refreshers" },
-      { storeId, name: "Pomegranate Refresher", price: "4.49", category: "Refreshers" },
-      { storeId, name: "Blue Citrus Refresher", price: "4.49", category: "Refreshers" },
-      { storeId, name: "Slushies", price: "2.99", category: "Slushies" },
-      { storeId, name: "Cookies", price: "1.99", category: "Dessert" },
-      { storeId, name: "Milk Cake", price: "5.99", category: "Dessert" },
-      { storeId, name: "Banana Pudding", price: "4.49", category: "Dessert" },
-    ];
-
-    for (const item of defaultMenuItems) {
-      await this.createMenuItem(item);
-    }
+  async saveSquareOAuthState(storeId: string, csrf: string): Promise<void> {
+    // Only one active OAuth attempt per store
+    await db.delete(oauthStates).where(eq(oauthStates.storeId, storeId));
+  
+    await db.insert(oauthStates).values({
+      storeId,
+      csrfToken: csrf,
+      createdAt: new Date(),
+    });
   }
+  
+  async verifySquareOAuthState(storeId: string, csrf: string): Promise<boolean> {
+    const [state] = await db
+      .select()
+      .from(oauthStates)
+      .where(eq(oauthStates.storeId, storeId))
+      .limit(1);
+  
+    if (!state) return false;
+  
+    // ⏱ Expire after 10 minutes
+    const expired =
+      Date.now() - state.createdAt.getTime() > 10 * 60 * 1000;
+  
+    if (expired) {
+      await this.deleteSquareOAuthState(storeId);
+      return false;
+    }
+  
+    return state.csrfToken === csrf;
+  }
+
+  async deleteSquareOAuthState(storeId: string): Promise<void> {
+    await db.delete(oauthStates).where(eq(oauthStates.storeId, storeId));
+  }
+
+  async cleanupExpiredSquareOAuthStates(): Promise<void> {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await db.delete(oauthStates).where(lt(oauthStates.createdAt, tenMinutesAgo));
+  }
+  
 
   // Square tokens (store-scoped)
   async saveSquareToken(storeId: string, token: InsertSquareToken): Promise<SquareToken> {
@@ -169,29 +172,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSquareToken(storeId: string): Promise<void> {
     await db.delete(squareTokens).where(eq(squareTokens.storeId, storeId));
-  }
-
-  // OAuth states
-  async saveOAuthState(state: InsertOAuthState): Promise<OAuthState> {
-    const [created] = await db
-      .insert(oauthStates)
-      .values(state)
-      .returning();
-    return created;
-  }
-
-  async getOAuthState(state: string): Promise<OAuthState | undefined> {
-    const [result] = await db.select().from(oauthStates).where(eq(oauthStates.state, state));
-    return result || undefined;
-  }
-
-  async deleteOAuthState(state: string): Promise<void> {
-    await db.delete(oauthStates).where(eq(oauthStates.state, state));
-  }
-
-  async cleanupExpiredStates(): Promise<void> {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    await db.delete(oauthStates).where(lt(oauthStates.createdAt, fiveMinutesAgo));
   }
 }
 

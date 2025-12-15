@@ -7,25 +7,36 @@ import { randomBytes } from "crypto";
 import { requireAuth, getStoreId } from "./middleware/auth";
 import { auth } from "./firebase";
 
+const SQUARE_API_BASE =
+  process.env.SQUARE_ENVIRONMENT === "sandbox"
+    ? "https://connect.squareupsandbox.com"
+    : "https://connect.squareup.com";
+
+const SQUARE_OAUTH_BASE =
+process.env.SQUARE_ENVIRONMENT === "sandbox"
+  ? "https://connect.squareupsandbox.com/oauth2/authorize"
+  : "https://connect.squareup.com/oauth2/authorize";
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  if (!process.env.SQUARE_APPLICATION_SECRET) {
-    console.error(
-      "CRITICAL: SQUARE_APPLICATION_SECRET environment variable is not set!",
-    );
-    console.error("Square OAuth will not work without this secret.");
+  if (
+    !process.env.SQUARE_APPLICATION_ID ||
+    !process.env.SQUARE_APPLICATION_SECRET ||
+    !process.env.SQUARE_OAUTH_REDIRECT_URL
+  ) {
+    throw new Error("Missing Square OAuth environment variables");
   }
 
   // Generate OAuth state for CSRF protection
   app.get("/api/square/oauth/start", requireAuth, async (req, res) => {
     const storeId = getStoreId(req);
     const csrf = randomBytes(32).toString("hex");
-  
     const state = `${storeId}:${csrf}`;
+    await storage.saveSquareOAuthState(storeId, csrf);
   
     res.json({
       state,
-      baseURL: "https://connect.squareup.com/",
-      appId: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
+      baseURL: SQUARE_OAUTH_BASE,
+      appId: process.env.SQUARE_APPLICATION_ID,
     });
   });
   
@@ -38,61 +49,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "invalid_state" });
     }
   
-    const [storeId, csrfToken] = state.split(":");
-  
-    if (!storeId) {
+    if (error) {
       return res.status(400).json({
-        error: "missing_store_id",
-        message: "Store ID missing from Square OAuth state",
+        error,
+        description: error_description,
       });
     }
-  
-    if (error) {
-      return res
-        .status(400)
-        .send(`Authorization failed: ${error_description || error}`);
+    
+    const [storeId, csrfToken] = state.split(":");
+
+    if (!storeId || !csrfToken) {
+      return res.status(400).json({ error: "invalid_state_format" });
     }
-  
-    if (!code) {
-      return res.status(400).send("Missing authorization code");
-    }
-  
+
+    const isValid = await storage.verifySquareOAuthState(storeId, csrfToken);
+    
+    if (!isValid) {
+      return res.status(400).json({ error: "invalid_csrf" });
+    }    
+
     try {
       // ===========================
       //  TOKEN EXCHANGE
       // ===========================
       const tokenResponse = await fetch(
-        "https://connect.squareupsandbox.com/oauth2/token",
+        `${SQUARE_API_BASE}/oauth2/token`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            client_id: "sq0idp-o0gFxi0LCTcztITa6DWf2g",
+            client_id: process.env.SQUARE_APPLICATION_ID,
             client_secret: process.env.SQUARE_APPLICATION_SECRET,
             code,
             grant_type: "authorization_code",
-            redirect_uri:
-              "https://jonell-hippodromic-emmie.ngrok-free.dev/api/square/oauth/callback",
+            redirect_uri: process.env.SQUARE_OAUTH_REDIRECT_URL,
           }),
         }
       );
   
       const tokenData = await tokenResponse.json();
   
-      console.log(
-        "[Square OAuth] Full token response:",
-        JSON.stringify(tokenData, null, 2)
-      );
-  
-      if (tokenData.error) {
-        return res.status(400).json(tokenData);
-      }
-  
       if (!tokenData.access_token || !tokenData.merchant_id) {
         return res.status(500).json({
-          error: "Invalid token response from Square",
-          tokenData,
-        });
+          error: "Invalid token response from Square" });
       }
   
       // Save tokens
@@ -102,7 +101,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
         merchantId: tokenData.merchant_id,
       });
-  
+      
+      await storage.deleteSquareOAuthState(storeId);
+
       console.log("[Square OAuth] Tokens saved to DB");
   
       // Sync menu
@@ -244,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square Locations] Fetching locations...");
 
       const response = await fetch(
-        "https://connect.squareup.com/v2/locations",
+        `${SQUARE_API_BASE}/v2/locations`,
         {
           method: "GET",
           headers: {
@@ -284,7 +285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square Devices] Fetching devices...");
 
       const response = await fetch(
-        "https://connect.squareup.com/v2/devices/codes",
+        `${SQUARE_API_BASE}/v2/devices/codes`,
         {
           method: "GET",
           headers: {
@@ -362,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square Terminal] Request data:", JSON.stringify(checkoutData, null, 2));
 
       const response = await fetch(
-        "https://connect.squareup.com/v2/terminals/checkouts",
+        `${SQUARE_API_BASE}/v2/terminals/checkouts`,
         {
           method: "POST",
           headers: {
@@ -400,7 +401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch catalog from Square
       const response = await fetch(
-        "https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY",
+        `${SQUARE_API_BASE}/v2/catalog/list?types=ITEM,CATEGORY`,
         {
           method: "GET",
           headers: {
@@ -482,7 +483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Square Catalog] Fetching items...");
 
       const response = await fetch(
-        "https://connect.squareup.com/v2/catalog/list?types=ITEM,CATEGORY",
+        `${SQUARE_API_BASE}/v2/catalog/list?types=ITEM,CATEGORY`,
         {
           method: "GET",
           headers: {

@@ -34,9 +34,11 @@ export const squareTokens = pgTable("square_tokens", {
 
 // OAuth states - can be removed if not needed, but keeping for Square OAuth
 export const oauthStates = pgTable("oauth_states", {
-  state: varchar("state").primaryKey(),
+  storeId: varchar("store_id").primaryKey(),
+  csrfToken: varchar("csrf_token").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
+
 
 // Store sessions - for persistent session storage (optional, if you want DB persistence)
 export const storeSessions = pgTable("store_sessions", {

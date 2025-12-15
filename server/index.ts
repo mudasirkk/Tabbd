@@ -64,12 +64,10 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,
-    host: "127.0.0.1",
+    host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`[express] Server running at: http://localhost:${port}`);
+    log(`[express] Server running on port ${port}`);
     
-    // Menu items are now store-scoped and will be seeded per-store
-    // when stores are created or connect Square
   });
-})();
+});

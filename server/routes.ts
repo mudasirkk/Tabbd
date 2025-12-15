@@ -32,6 +32,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const state = `${storeId}:${csrf}`;
     await storage.saveSquareOAuthState(storeId, csrf);
   
+    console.log("[OAuth START] baseURL =", SQUARE_OAUTH_BASE);
+
     res.json({
       state,
       baseURL: SQUARE_OAUTH_BASE,

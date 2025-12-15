@@ -667,6 +667,7 @@ export default function Dashboard() {
                         method: "GET",
                         headers: {
                           Authorization: `Bearer ${idToken}`,
+                          cache: "no-store",
                         },
                       });
 

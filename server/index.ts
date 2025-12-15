@@ -1,9 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import 'dotenv/config';
+import "dotenv/config";
+
+console.log("BOOT: starting server");
+
+// ---- ENV CHECKS (boolean only, no secrets) ----
+console.log("ENV CHECK: NODE_ENV =", process.env.NODE_ENV);
+console.log("ENV CHECK: PORT =", process.env.PORT);
+console.log(
+  "ENV CHECK: FIREBASE_SERVICE_ACCOUNT_B64 exists =",
+  !!process.env.FIREBASE_SERVICE_ACCOUNT_B64
+);
+console.log(
+  "ENV CHECK: SQUARE_APPLICATION_ID exists =",
+  !!process.env.SQUARE_APPLICATION_ID
+);
+console.log(
+  "ENV CHECK: SQUARE_APPLICATION_SECRET exists =",
+  !!process.env.SQUARE_APPLICATION_SECRET
+);
+console.log(
+  "ENV CHECK: DATABASE_URL exists =",
+  !!process.env.DATABASE_URL
+);
+// ----------------------------------------------
 
 const app = express();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -38,36 +62,37 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  console.log("BOOT: registering routes");
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error("UNHANDLED ERROR:", err);
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
     res.status(status).json({ message });
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    console.log("BOOT: setting up Vite dev server");
     await setupVite(app, server);
   } else {
+    console.log("BOOT: serving static files");
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`[express] Server running on port ${port}`);
-    
-  });
-});
+  const port = parseInt(process.env.PORT || "5000", 10);
+
+  console.log("BOOT: starting HTTP server");
+
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    },
+    () => {
+      log(`[express] Server running on port ${port}`);
+    }
+  );
+})();

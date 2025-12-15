@@ -9,13 +9,12 @@ import { auth } from "./firebase";
 
 const SQUARE_API_BASE =
   process.env.SQUARE_ENVIRONMENT === "sandbox"
-  ? "https://connect.squareupsandbox.com"
-  : "https://connect.squareup.com";
+    ? "https://connect.squareupsandbox.com"
+    : "https://connect.squareup.com";
 
 const SQUARE_OAUTH_BASE =
-  process.env.SQUARE_ENVIRONMENT === "sandbox"
-      ? "https://connect.squareupsandbox.com/oauth2/authorize"
-      : "https://connect.squareup.com/oauth2/authorize";
+  `${SQUARE_API_BASE}/oauth2/authorize`;
+
 
 export async function registerRoutes(app: Express): Promise<Server> {
   if (
@@ -67,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!isValid) {
       return res.status(400).json({ error: "invalid_csrf" });
     }
-    
+
     await storage.deleteSquareOAuthState(storeId);  
 
     try {

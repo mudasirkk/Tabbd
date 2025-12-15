@@ -1,40 +1,20 @@
 import admin from "firebase-admin";
-import fs from "fs";
-import path from "path";
 import dotenv from "dotenv";
 
-dotenv.config(); // loads root .env automatically if server runs at root
+dotenv.config();
 
-// ------------------------------------------
-// Load service account from file
-// ------------------------------------------
-
-const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-
-if (!serviceAccountPath) {
-  throw new Error("Missing FIREBASE_SERVICE_ACCOUNT_PATH in .env");
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  throw new Error("FIREBASE_SERVICE_ACCOUNT is not set");
 }
 
-const resolvedPath = path.resolve(serviceAccountPath);
-
-if (!fs.existsSync(resolvedPath)) {
-  throw new Error(`Service account file not found at: ${resolvedPath}`);
-}
-
-const serviceAccountJSON = JSON.parse(
-  fs.readFileSync(resolvedPath, "utf8")
+const serviceAccount = JSON.parse(
+  process.env.FIREBASE_SERVICE_ACCOUNT.replace(/\\n/g, "\n")
 );
-
-// Fix escaped newlines in private_key (common on Windows)
-if (serviceAccountJSON.private_key) {
-  serviceAccountJSON.private_key = serviceAccountJSON.private_key.replace(/\\n/g, "\n");
-}
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccountJSON as admin.ServiceAccount),
+    credential: admin.credential.cert(serviceAccount),
   });
-  console.log("[Firebase] Initialized using service account file");
 }
 
 export const auth = admin.auth();

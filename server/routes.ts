@@ -9,13 +9,13 @@ import { auth } from "./firebase";
 
 const SQUARE_API_BASE =
   process.env.SQUARE_ENVIRONMENT === "sandbox"
-  ? "https://connect.squareupsandbox.com/oauth2/authorize"
-  : "https://connect.squareup.com/oauth2/authorize";
+  ? "https://connect.squareupsandbox.com"
+  : "https://connect.squareup.com";
 
 const SQUARE_OAUTH_BASE =
-process.env.SQUARE_ENVIRONMENT === "sandbox"
-  ? "https://connect.squareupsandbox.com/oauth2/authorize"
-  : "https://connect.squareup.com/oauth2/authorize";
+  process.env.SQUARE_ENVIRONMENT === "sandbox"
+      ? "https://connect.squareupsandbox.com/oauth2/authorize"
+      : "https://connect.squareup.com/oauth2/authorize";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   if (
@@ -37,7 +37,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       state,
       baseURL: SQUARE_OAUTH_BASE,
       appId: process.env.SQUARE_APPLICATION_ID,
-      redirectUrl: process.env.SQUARE_REDIRECT_URL,
+      redirectUri: process.env.SQUARE_REDIRECT_URL,
     });
   });
   
@@ -63,11 +63,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "invalid_state_format" });
     }
 
-    const isValid = await storage.verifySquareOAuthState(storeId, csrfToken);
-    
+    const isValid = await storage.verifySquareOAuthState(storeId, csrfToken);  
     if (!isValid) {
       return res.status(400).json({ error: "invalid_csrf" });
-    }    
+    }
+    
+    await storage.deleteSquareOAuthState(storeId);  
 
     try {
       // ===========================
@@ -102,8 +103,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
         merchantId: tokenData.merchant_id,
       });
-      
-      await storage.deleteSquareOAuthState(storeId);
 
       console.log("[Square OAuth] Tokens saved to DB");
   

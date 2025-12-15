@@ -660,7 +660,22 @@ export default function Dashboard() {
                   variant="outline"
                   onClick={async () => {
                     try {
-                      const data = await apiRequest("GET", "/api/square/oauth/start");
+                      const idToken = await user?.getIdToken();
+                      if (!idToken) throw new Error("No Firebase user token");
+
+                      const res = await fetch("/api/square/oauth/start", {
+                        method: "GET",
+                        headers: {
+                          Authorization: `Bearer ${idToken}`,
+                        },
+                      });
+
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err?.error || "Failed to start OAuth");
+                      }
+
+                      const data = await res.json();
 
                       const scopes =
                         "MERCHANT_PROFILE_READ PAYMENTS_WRITE INVENTORY_READ ITEMS_READ DEVICE_CREDENTIAL_MANAGEMENT";
@@ -670,7 +685,7 @@ export default function Dashboard() {
                         `client_id=${data.appId}` +
                         `&scope=${encodeURIComponent(scopes)}` +
                         `&state=${encodeURIComponent(data.state)}` +
-                        `&redirect_uri=${encodeURIComponent(data.redirectUrl)}` +
+                        `&redirect_uri=${encodeURIComponent(data.redirectUri)}` +
                         `&session=false`;
 
                       window.location.href = authUrl;

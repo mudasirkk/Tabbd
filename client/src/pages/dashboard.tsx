@@ -692,6 +692,7 @@ export default function Dashboard() {
                         `&redirect_uri=${encodeURIComponent(data.redirectUri)}` +
                         `&session=false`;
 
+                      console.log("FINAL OAUTH URL", authUrl);
                       window.location.href = authUrl;
                     } catch (error) {
                       toast({

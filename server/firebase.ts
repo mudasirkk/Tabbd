@@ -3,12 +3,15 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-  throw new Error("FIREBASE_SERVICE_ACCOUNT is not set");
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+  throw new Error("FIREBASE_SERVICE_ACCOUNT_B64 is not set");
 }
 
 const serviceAccount = JSON.parse(
-  process.env.FIREBASE_SERVICE_ACCOUNT.replace(/\\n/g, "\n")
+  Buffer.from(
+    process.env.FIREBASE_SERVICE_ACCOUNT_B64,
+    "base64"
+  ).toString("utf8")
 );
 
 if (!admin.apps.length) {

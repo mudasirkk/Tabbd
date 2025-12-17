@@ -178,7 +178,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-6">
             <div className="hidden sm:block text-right">
               <p className="text-xs text-muted-foreground">Signed in as</p>
-              <p className="font-semibold">{store?.name ?? "Store"}</p>
+              <p className="font-semibold">{storeData?.name ?? "Store"}</p>
             </div>
 
             <Button

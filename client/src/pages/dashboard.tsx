@@ -78,7 +78,7 @@ function loadStations(): Station[] {
 
 export default function Dashboard() {
     const { toast } = useToast();
-    const { store, setStore } = useStore();
+    const { store } = useStore();
   
     /* ---------- AUTH ---------- */
     const {
@@ -121,11 +121,6 @@ export default function Dashboard() {
       }
     }, []);
   
-    useEffect(() => {
-      if (storeData) {
-        setStore(storeData);
-      }
-    }, [storeData, setStore]);
   
     useEffect(() => {
       const id = setInterval(() => setCurrentTime(Date.now()), 1000);

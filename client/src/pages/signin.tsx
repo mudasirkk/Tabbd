@@ -31,6 +31,7 @@ export default function SignIn() {
 
           const authUrl =
             `${data.baseURL}?` +
+            `response_type=code` +  
             `client_id=${data.appId}` +
             `&scope=${encodeURIComponent(scopes)}` +
             `&state=${encodeURIComponent(data.state)}` +

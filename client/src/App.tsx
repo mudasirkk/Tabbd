@@ -1,22 +1,24 @@
-import { Route, Redirect } from "wouter";
+import { Route, Switch } from "wouter";
 import Dashboard from "@/pages/dashboard";
 import SignIn from "@/pages/signin";
 
 export default function App() {
   return (
-    <>
-       {/* Public Route */}
-       <Route path="/signin" component={SignIn} />
+    <Switch>
+      {/* Public route */}
+      <Route path="/signin" component={SignIn} />
 
-      {/* Protected Dashboard */}
-      <Route path="/">
-          <Dashboard />
-      </Route>
+      {/* Protected route */}
+      <Route path="/dashboard" component={Dashboard} />
 
-      {/* Catch-all */}
-      <Route path="*">
-        <Redirect to="/" />
+      {/* Default: send unknown paths to signin */}
+      <Route>
+        {() => {
+          window.location.replace("/signin");
+          return null;
+        }}
       </Route>
-    </>
+    </Switch>
   );
 }
+

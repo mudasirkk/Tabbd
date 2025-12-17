@@ -95,7 +95,12 @@ export const queryClient = new QueryClient({
  */
 queryClient.getQueryCache().subscribe((event) => {
   const error = event?.query?.state?.error;
-  if (error instanceof Error && error.message.includes("401")) {
+
+  if (
+    error instanceof Error &&
+    error.message.includes("401") &&
+    window.location.pathname !== "/signin"
+  ) {
     window.location.href = "/signin";
   }
 });

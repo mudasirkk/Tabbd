@@ -5,7 +5,6 @@ import { insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { requireAuth, getStoreId } from "./middleware/auth";
-import { auth } from "./firebase";
 
 const SQUARE_API_BASE =
   process.env.SQUARE_ENVIRONMENT === "sandbox"
@@ -15,6 +14,34 @@ const SQUARE_API_BASE =
 const SQUARE_OAUTH_BASE =
   `${SQUARE_API_BASE}/oauth2/authorize`;
 
+async function fetchSquareBusinessName(accessToken: string): Promise<string> {
+    const response = await fetch(
+      `${SQUARE_API_BASE}/v2/locations`,
+      {
+        method: "GET",
+        headers: {
+          "Square-Version": "2024-09-19",
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  
+    if (!response.ok) {
+      throw new Error("Failed to fetch Square locations");
+    }
+  
+    const data = await response.json();
+  
+    const primaryLocation = data.locations?.[0];
+  
+    return (
+      primaryLocation?.business_name ||
+      primaryLocation?.name ||
+      "Square Store"
+    );
+  }
+  
 
 export async function registerRoutes(app: Express): Promise<Server> {
   if (
@@ -26,16 +53,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Generate OAuth state for CSRF protection
-  app.get("/api/square/oauth/start", requireAuth, async (req, res) => {
-    const storeId = getStoreId(req);
+  app.get("/api/square/oauth/start", async (req, res) => {
     const csrf = randomBytes(32).toString("hex");
-    const state = `${storeId}:${csrf}`;
-    await storage.saveSquareOAuthState(storeId, csrf);
-  
-    console.log("[OAuth START] baseURL =", SQUARE_OAUTH_BASE);
+    await storage.saveSquareOAuthState(csrf);
 
     res.json({
-      state,
+      state: csrf,
       baseURL: SQUARE_OAUTH_BASE,
       appId: process.env.SQUARE_APPLICATION_ID,
       redirectUri: process.env.SQUARE_REDIRECT_URL,
@@ -45,160 +68,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Square OAuth callback
   app.get("/api/square/oauth/callback", async (req, res) => {
-    const { code, error, error_description, state } = req.query;
+    const { code, state } = req.query;
   
-    if (!state || typeof state !== "string") {
-      return res.status(400).json({ error: "invalid_state" });
-    }
-  
-    if (error) {
-      return res.status(400).json({
-        error,
-        description: error_description,
-      });
+    if (!code || !state || typeof state !== "string") {
+      return res.status(400).send("Invalid OAuth response");
     }
     
-    const [storeId, csrfToken] = state.split(":");
-
-    if (!storeId || !csrfToken) {
-      return res.status(400).json({ error: "invalid_state_format" });
-    }
-
-    const isValid = await storage.verifySquareOAuthState(storeId, csrfToken);  
+    const isValid = await storage.verifySquareOAuthState(state);  
     if (!isValid) {
-      return res.status(400).json({ error: "invalid_csrf" });
+      return res.status(400).send("Invalid CSRF");
     }
 
-    await storage.deleteSquareOAuthState(storeId);  
+    await storage.deleteSquareOAuthState(state);
+
+    const tokenResponse = await fetch(`${SQUARE_API_BASE}/oauth2/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: process.env.SQUARE_APPLICATION_ID,
+          client_secret: process.env.SQUARE_APPLICATION_SECRET,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: process.env.SQUARE_REDIRECT_URL,
+        }),
+    });
+
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenData.access_token || !tokenData.merchant_id) {
+      return res.status(500).send("Invalid token response");
+    }
+
+
+    const merchantId = tokenData.merchant_id;
+
+    let businessName = "Square Store";
 
     try {
-      // ===========================
-      //  TOKEN EXCHANGE
-      // ===========================
-      const tokenResponse = await fetch(
-        `${SQUARE_API_BASE}/oauth2/token`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_id: process.env.SQUARE_APPLICATION_ID,
-            client_secret: process.env.SQUARE_APPLICATION_SECRET,
-            code,
-            grant_type: "authorization_code",
-            redirect_uri: process.env.SQUARE_REDIRECT_URL,
-          }),
-        }
-      );
-  
-      const tokenData = await tokenResponse.json();
-  
-      if (!tokenData.access_token || !tokenData.merchant_id) {
-        return res.status(500).json({
-          error: "Invalid token response from Square" });
-      }
-  
-      // Save tokens
-      await storage.saveSquareToken(storeId, {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
-        merchantId: tokenData.merchant_id,
-      });
-
-      console.log("[Square OAuth] Tokens saved to DB");
-  
-      // Sync menu
-      const syncResult = await syncMenuFromSquare(
-        tokenData.access_token,
-        storeId
-      );
-  
-      // Success page
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head><title>Square Connected</title></head>
-          <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-            <h2>Square account connected successfully!</h2>
-            <p>${
-              syncResult.success
-                ? `${syncResult.itemCount} menu items imported.`
-                : "Menu sync still processing."
-            }</p>
-            <script>
-              window.location.href = '/?square_connected=true';
-            </script>
-          </body>
-        </html>
-      `);
+      businessName = await fetchSquareBusinessName(tokenData.access_token);
     } catch (err) {
-      console.error("[Square OAuth] Callback error:", err);
-      return res.status(500).json({
-        error: "OAuth callback failed",
-        message: err instanceof Error ? err.message : "Unknown error",
-        details: err,
-      });
+      console.warn("[Square] Failed to fetch business name:", err);
     }
+
+    await storage.upsertStore({
+      id: merchantId,
+      name: businessName,
+    });
+
+
+    // Save tokens
+    await storage.saveSquareToken(merchantId, {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? null,
+      expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at) : null,
+      merchantId,
+    });
+
+    // fire-and-forget menu sync
+    syncMenuFromSquare(tokenData.access_token, merchantId)
+    .catch(err => {
+      console.error("[Square Sync] Initial sync failed:", err);
+    });
+    
+    req.session.storeId = merchantId;
+
+    res.redirect("/dashboard");
   });
   
 
-  // ============ FIREBASE AUTHENTICATION ROUTES ============
-
-  // POST /api/auth/verify - Verify Firebase token and create/update store
-  app.post("/api/auth/verify", async (req, res) => {
-    try {
-      const { idToken } = req.body;
-      if (!idToken) {
-        return res.status(400).json({ error: "ID token required" });
-      }
-
-      // Verify token with Firebase Admin
-      const decodedToken = await auth.verifyIdToken(idToken);
-      
-      // Get or create store in database
-      let store = await storage.getStoreById(decodedToken.uid);
-      
-      if (!store) {
-        // Create new store
-        store = await storage.createStore({
-          id: decodedToken.uid,
-          name: decodedToken.name || decodedToken.email?.split('@')[0] || "Store",
-          email: decodedToken.email || "",
-          avatar: decodedToken.picture || null,
-        });
-      } else {
-        // Update store info (in case name/avatar changed)
-        store = await storage.updateStore(decodedToken.uid, {
-          name: decodedToken.name || store.name,
-          email: decodedToken.email || store.email,
-          avatar: decodedToken.picture || store.avatar,
-        }) || store;
-      }
-
-      res.json(store);
-    } catch (error) {
-      console.error("Error verifying token:", error);
-      res.status(401).json({ error: "Invalid token" });
-    }
-  });
-
-  // GET /api/auth/me - Get current store (requires auth middleware)
-  app.get("/api/auth/me", requireAuth, async (req, res) => {
-    try {
-      const storeId = getStoreId(req);
-      const store = await storage.getStoreById(storeId);
-      if (!store) {
-        return res.status(404).json({ error: "Store not found" });
-      }
-      res.json(store);
-    } catch (error) {
-      console.error("Error fetching store:", error);
-      res.status(500).json({ error: "Failed to fetch store" });
-    }
-  });
-
+  
   // ============ PROTECTED ROUTES ============
   // Update all existing routes to use requireAuth and getStoreId
+
+  app.post("/api/auth/disconnect", requireAuth, async (req, res) => {
+    const storeId = getStoreId(req);
+  
+    const token = await storage.getSquareToken(storeId);
+  
+    if (token?.accessToken) {
+      try {
+        await fetch(`${SQUARE_API_BASE}/oauth2/revoke`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            client_id: process.env.SQUARE_APPLICATION_ID,
+            access_token: token.accessToken,
+          }),
+        });
+      } catch (err) {
+        console.warn("[Square revoke] failed (continuing):", err);
+      }
+    }
+  
+    await storage.deleteSquareToken(storeId);
+    await storage.clearAllMenuItems(storeId);
+  
+    req.session.destroy(() => {
+      res.sendStatus(204);
+    });
+  });
+  
 
   // GET /api/square/status
   app.get("/api/square/status", requireAuth, async (req, res) => {
@@ -214,24 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to check Square status" });
     }
   });
-
-  // DELETE /api/square/disconnect - Disconnect Square account
-  app.delete("/api/square/disconnect", requireAuth, async (req, res) => {
-    try {
-      const storeId = getStoreId(req);
-      await storage.deleteSquareToken(storeId);
-      console.log("[Square] Account disconnected");
-      
-      // Clear all menu items when disconnecting
-      await storage.clearAllMenuItems(storeId);
-      console.log("[Square] Menu items cleared");
-      
-      res.json({ success: true, message: "Square account disconnected and menu cleared" });
-    } catch (error) {
-      console.error("Error disconnecting Square:", error);
-      res.status(500).json({ error: "Failed to disconnect Square account" });
-    }
-  });
+ 
 
   // GET /api/square/locations
   app.get("/api/square/locations", requireAuth, async (req, res) => {

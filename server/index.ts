@@ -1,30 +1,10 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import "dotenv/config";
 
 console.log("BOOT: starting server");
-
-// ---- ENV CHECKS (boolean only, no secrets) ----
-console.log("ENV CHECK: NODE_ENV =", process.env.NODE_ENV);
-console.log("ENV CHECK: PORT =", process.env.PORT);
-console.log(
-  "ENV CHECK: FIREBASE_SERVICE_ACCOUNT_B64 exists =",
-  !!process.env.FIREBASE_SERVICE_ACCOUNT_B64
-);
-console.log(
-  "ENV CHECK: SQUARE_APPLICATION_ID exists =",
-  !!process.env.SQUARE_APPLICATION_ID
-);
-console.log(
-  "ENV CHECK: SQUARE_APPLICATION_SECRET exists =",
-  !!process.env.SQUARE_APPLICATION_SECRET
-);
-console.log(
-  "ENV CHECK: DATABASE_URL exists =",
-  !!process.env.DATABASE_URL
-);
-// ----------------------------------------------
 
 const app = express();
 
@@ -60,6 +40,20 @@ app.use((req, res, next) => {
 
   next();
 });
+
+app.use(
+  session({
+    name: "tabbd.sid",
+    secret: process.env.SESSION_SECRET!,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    },
+  })
+);
 
 (async () => {
   console.log("BOOT: registering routes");

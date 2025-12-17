@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -18,8 +18,14 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useStore } from "@/contexts/StoreContext";
 
 /* ============================= TYPES ============================= */
+
+interface Store {
+  id: string;
+  name: string;
+}
 
 interface StoredSessionItem {
   itemId: string;
@@ -37,11 +43,6 @@ interface Station {
   startTime?: number;
   pausedTime?: number;
   items: StoredSessionItem[];
-}
-
-interface SquareStatus {
-  connected: boolean;
-  merchantId: string | null;
 }
 
 /* ============================= CONSTANTS ============================= */
@@ -64,19 +65,44 @@ const initialStations: Station[] = [
   { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: [] },
 ];
 
-const loadStations = (): Station[] => {
+function loadStations(): Station[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : initialStations;
   } catch {
     return initialStations;
   }
-};
+}
 
 /* ============================= COMPONENT ============================= */
 
 export default function Dashboard() {
   const { toast } = useToast();
+  const { store, setStore } = useStore();
+
+  /* ---------- AUTH (SINGLE SOURCE) ---------- */
+
+  const {
+    data: storeData,
+    isLoading: authLoading,
+  } = useQuery<Store>({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (storeData) {
+      setStore(storeData);
+    }
+  }, [storeData, setStore]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading…</p>
+      </div>
+    );
+  }
 
   /* ---------- STATE ---------- */
 
@@ -95,34 +121,14 @@ export default function Dashboard() {
   const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
   const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
 
-  /* ---------- AUTH ---------- */
-
-  const {
-    isLoading: authLoading,
-    error: authError,
-  } = useQuery({
-    queryKey: ["/api/auth/me"],
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (authError) window.location.href = "/signin";
-  }, [authError]);
-
-  /* ---------- SQUARE ---------- */
-
-  const { data: squareStatus } = useQuery<SquareStatus>({
-    queryKey: ["/api/square/status"],
-  });
+  /* ---------- DATA ---------- */
 
   const { data: menuItems } = useQuery<MenuItem[]>({
     queryKey: ["/api/menu-items"],
-    enabled: !!squareStatus?.connected,
   });
 
   const { data: squareDevices } = useQuery<any>({
     queryKey: ["/api/square/devices"],
-    enabled: !!squareStatus?.connected,
   });
 
   /* ---------- EFFECTS ---------- */
@@ -136,23 +142,14 @@ export default function Dashboard() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stations));
   }, [stations]);
 
-  /* ---------- GUARD ---------- */
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading…</p>
-      </div>
-    );
-  }
-
   /* ---------- HELPERS ---------- */
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
   const getTimeElapsed = (station: Station) => {
     if (!station.isActive || !station.startTime) return 0;
-    const end = station.isPaused && station.pausedTime ? station.pausedTime : currentTime;
+    const end =
+      station.isPaused && station.pausedTime ? station.pausedTime : currentTime;
     return Math.floor((end - station.startTime) / 1000);
   };
 
@@ -180,18 +177,25 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
           </div>
 
-          <Button
-            variant="destructive"
-            onClick={async () => {
-              try {
-                await apiRequest("POST", "/api/auth/disconnect");
-              } finally {
-                window.location.href = "/signin";
-              }
-            }}
-          >
-            Disconnect Square
-          </Button>
+          <div className="flex items-center gap-6">
+            <div className="hidden sm:block text-right">
+              <p className="text-xs text-muted-foreground">Signed in as</p>
+              <p className="font-semibold">{store?.name ?? "Store"}</p>
+            </div>
+
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  await apiRequest("POST", "/api/auth/disconnect");
+                } finally {
+                  window.location.replace("/signin");
+                }
+              }}
+            >
+              Disconnect
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -226,15 +230,21 @@ export default function Dashboard() {
                           ? {
                               ...s,
                               isPaused: false,
-                              startTime: s.startTime + (Date.now() - s.pausedTime),
+                              startTime:
+                                s.startTime + (Date.now() - s.pausedTime),
                               pausedTime: undefined,
                             }
                           : s
                       )
                     )
                   }
-                  onCompletePayment={() => setCheckoutOpen(true)}
-                  onClick={() => station.isActive && setSelectedStationId(station.id)}
+                  onCompletePayment={() => {
+                    setSelectedStationId(station.id);
+                    setCheckoutOpen(true);
+                  }}
+                  onClick={() =>
+                    station.isActive && setSelectedStationId(station.id)
+                  }
                 />
               ))}
             </div>
@@ -252,11 +262,13 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {stations.filter((s) => s.isActive).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
+                      {stations
+                        .filter((s) => s.isActive)
+                        .map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -297,7 +309,12 @@ export default function Dashboard() {
           setStations((p) =>
             p.map((s) =>
               s.id === stationToStart
-                ? { ...s, isActive: true, startTime: customStartTime ?? Date.now() }
+                ? {
+                    ...s,
+                    isActive: true,
+                    startTime: customStartTime ?? Date.now(),
+                    items: [],
+                  }
                 : s
             )
           );
@@ -327,13 +344,8 @@ export default function Dashboard() {
               })
             }
             onConfirm={() => setAddItemsOpen(false)}
-            squareConnected={!!squareStatus?.connected}
-            onConnectSquare={() =>
-              toast({
-                title: "Square required",
-                description: "Reconnect Square to continue",
-              })
-            }
+            squareConnected={true}
+            onConnectSquare={() => {}}
           />
 
           <CheckoutDialog
@@ -345,7 +357,7 @@ export default function Dashboard() {
             timeCharge={getTimeCharge(selectedStation)}
             items={getSessionItems(selectedStation)}
             devices={squareDevices?.device_codes || []}
-            squareConnected={!!squareStatus?.connected}
+            squareConnected={true}
             onConfirmCheckout={({ grandTotal }) => {
               setPaymentData({
                 totalAmount: grandTotal,

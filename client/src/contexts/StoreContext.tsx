@@ -1,6 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { createContext, useContext, ReactNode, useState } from "react";
 
 interface Store {
   id: string;
@@ -9,38 +7,16 @@ interface Store {
 
 interface StoreContextType {
   store: Store | null;
-  isLoading: boolean;
-  refetchStore: () => Promise<void>;
+  setStore: (store: Store | null) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
-
-  const isSigninPage = location === "/signin";
-
-  const {
-    data: store,
-    isLoading,
-    refetch,
-  } = useQuery<Store>({
-    queryKey: ["/api/auth/me"],
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-    enabled: !isSigninPage, // 🔥 THIS IS THE LOOP FIX
-  });
+  const [store, setStore] = useState<Store | null>(null);
 
   return (
-    <StoreContext.Provider
-      value={{
-        store: store ?? null,
-        isLoading,
-        refetchStore: async () => {
-          await refetch();
-        },
-      }}
-    >
+    <StoreContext.Provider value={{ store, setStore }}>
       {children}
     </StoreContext.Provider>
   );

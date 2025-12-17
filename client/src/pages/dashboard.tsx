@@ -91,6 +91,12 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    if (window.location.hash === "#_=_") {
+      history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     if (storeData) {
       setStore(storeData);
     }

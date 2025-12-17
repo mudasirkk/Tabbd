@@ -77,77 +77,74 @@ function loadStations(): Station[] {
 /* ============================= COMPONENT ============================= */
 
 export default function Dashboard() {
-  const { toast } = useToast();
-  const { store, setStore } = useStore();
-
-  /* ---------- AUTH (SINGLE SOURCE) ---------- */
-
-  const {
-    data: storeData,
-    isLoading: authLoading,
-  } = useQuery<Store>({
-    queryKey: ["/api/auth/me"],
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (window.location.hash === "#_=_") {
-      history.replaceState(null, "", window.location.pathname);
+    const { toast } = useToast();
+    const { store, setStore } = useStore();
+  
+    /* ---------- AUTH ---------- */
+    const {
+      data: storeData,
+      isLoading: authLoading,
+    } = useQuery<Store>({
+      queryKey: ["/api/auth/me"],
+      retry: false,
+    });
+  
+    /* ---------- STATE (MUST BE BEFORE ANY RETURN) ---------- */
+    const [currentTime, setCurrentTime] = useState(Date.now());
+    const [stations, setStations] = useState<Station[]>(loadStations);
+    const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  
+    const [startSessionOpen, setStartSessionOpen] = useState(false);
+    const [stationToStart, setStationToStart] = useState<string | null>(null);
+  
+    const [addItemsOpen, setAddItemsOpen] = useState(false);
+    const [checkoutOpen, setCheckoutOpen] = useState(false);
+    const [transferOpen, setTransferOpen] = useState(false);
+  
+    const [tempItems, setTempItems] = useState<Record<string, number>>({});
+    const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
+    const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
+  
+    /* ---------- DATA ---------- */
+    const { data: menuItems } = useQuery<MenuItem[]>({
+      queryKey: ["/api/menu-items"],
+    });
+  
+    const { data: squareDevices } = useQuery<any>({
+      queryKey: ["/api/square/devices"],
+    });
+  
+    /* ---------- EFFECTS ---------- */
+    useEffect(() => {
+      if (window.location.hash === "#_=_") {
+        history.replaceState(null, "", window.location.pathname);
+      }
+    }, []);
+  
+    useEffect(() => {
+      if (storeData) {
+        setStore(storeData);
+      }
+    }, [storeData, setStore]);
+  
+    useEffect(() => {
+      const id = setInterval(() => setCurrentTime(Date.now()), 1000);
+      return () => clearInterval(id);
+    }, []);
+  
+    useEffect(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stations));
+    }, [stations]);
+  
+    /* ---------- SAFE CONDITIONAL RENDER ---------- */
+    if (authLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <p>Loading…</p>
+        </div>
+      );
     }
-  }, []);
-
-  useEffect(() => {
-    if (storeData) {
-      setStore(storeData);
-    }
-  }, [storeData, setStore]);
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading…</p>
-      </div>
-    );
-  }
-
-  /* ---------- STATE ---------- */
-
-  const [currentTime, setCurrentTime] = useState(Date.now());
-  const [stations, setStations] = useState<Station[]>(loadStations);
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
-
-  const [startSessionOpen, setStartSessionOpen] = useState(false);
-  const [stationToStart, setStationToStart] = useState<string | null>(null);
-
-  const [addItemsOpen, setAddItemsOpen] = useState(false);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [transferOpen, setTransferOpen] = useState(false);
-
-  const [tempItems, setTempItems] = useState<Record<string, number>>({});
-  const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
-  const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
-
-  /* ---------- DATA ---------- */
-
-  const { data: menuItems } = useQuery<MenuItem[]>({
-    queryKey: ["/api/menu-items"],
-  });
-
-  const { data: squareDevices } = useQuery<any>({
-    queryKey: ["/api/square/devices"],
-  });
-
-  /* ---------- EFFECTS ---------- */
-
-  useEffect(() => {
-    const id = setInterval(() => setCurrentTime(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stations));
-  }, [stations]);
-
+  
   /* ---------- HELPERS ---------- */
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);

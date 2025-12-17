@@ -7,6 +7,7 @@ import "dotenv/config";
 console.log("BOOT: starting server");
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -47,10 +48,12 @@ app.use(
     secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
+    proxy: true, // 🔴 REQUIRED
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
       sameSite: "none",
+      path: "/",
     },
   })
 );

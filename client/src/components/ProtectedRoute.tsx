@@ -1,12 +1,22 @@
-import { useAuth } from "@/contexts/AuthProvider";
-import { Redirect } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
-export default function ProtectedRoute({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
+export default function ProtectedRoute({
+  children,
+}: {
+  children: JSX.Element;
+}) {
+  const { isLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
 
-  if (loading) return <div className="p-4 text-center">Loading...</div>;
+  if (isLoading) {
+    return <div className="p-4 text-center">Loading...</div>;
+  }
 
-  if (!user) return <Redirect to="/signin" />;
-
+  // If unauthorized:
+  // - /api/auth/me returns 401
+  // - query throws
+  // - global 401 handler redirects to /signin
   return children;
 }

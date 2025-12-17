@@ -1,83 +1,44 @@
-import { createContext, useContext, ReactNode, useEffect, useState } from "react";
+import { createContext, useContext, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+
+/* ============================= TYPES ============================= */
 
 interface Store {
   id: string;
   name: string;
-  email: string;
-  avatar?: string | null;
 }
 
 interface StoreContextType {
-  store: Store | null | undefined;
+  store: Store | null;
   isLoading: boolean;
-  isAuthenticated: boolean;
   refetchStore: () => Promise<void>;
 }
 
+/* ============================= CONTEXT ============================= */
+
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+/* ============================= PROVIDER ============================= */
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [, setLocation] = useLocation();
-  const [firebaseUser, setFirebaseUser] = useState<any>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-
-  // Listen to Firebase auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-      setIsAuthLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // Fetch store info when authenticated
-  const { data: store, isLoading: storeLoading, refetch } = useQuery<Store>({
+  const {
+    data: store,
+    isLoading,
+    refetch,
+  } = useQuery<Store>({
     queryKey: ["/api/auth/me"],
-    enabled: !!firebaseUser,
     retry: false,
     staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      if (!firebaseUser) return null;
-      
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch("/api/auth/me", {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch store");
-      }
-
-      return res.json();
-    },
   });
-
-  const refetchStore = async () => {
-    await refetch();
-  };
-
-  // Redirect to sign-in if not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !firebaseUser && window.location.pathname !== "/signin") {
-      setLocation("/signin");
-    }
-  }, [firebaseUser, isAuthLoading, setLocation]);
 
   return (
     <StoreContext.Provider
       value={{
-        store: store || null,
-        isLoading: isAuthLoading || storeLoading,
-        isAuthenticated: !!firebaseUser && !!store,
-        refetchStore,
+        store: store ?? null,
+        isLoading,
+        refetchStore: async () => {
+          await refetch();
+        },
       }}
     >
       {children}
@@ -85,9 +46,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/* ============================= HOOK ============================= */
+
 export function useStore() {
   const context = useContext(StoreContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useStore must be used within a StoreProvider");
   }
   return context;

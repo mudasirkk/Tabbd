@@ -139,6 +139,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ============ PROTECTED ROUTES ============
   // Update all existing routes to use requireAuth and getStoreId
+  
+  // GET /api/auth/me
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+      const storeId = getStoreId(req);
+      const store = await storage.getStoreById(storeId);
+
+      if (!store) {
+        return res.status(404).json({ error: "Store not found" });
+      }
+
+      res.json({
+        id: store.id,
+        name: store.name,
+      });
+    } catch (err) {
+      console.error("[AUTH ME] Error:", err);
+      res.status(500).json({ error: "Failed to fetch store" });
+    }
+  });
+
 
   app.post("/api/auth/disconnect", requireAuth, async (req, res) => {
     const storeId = getStoreId(req);

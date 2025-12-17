@@ -1,7 +1,6 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-
-/* ============================= TYPES ============================= */
+import { useLocation } from "wouter";
 
 interface Store {
   id: string;
@@ -14,13 +13,13 @@ interface StoreContextType {
   refetchStore: () => Promise<void>;
 }
 
-/* ============================= CONTEXT ============================= */
-
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-/* ============================= PROVIDER ============================= */
-
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+
+  const isSigninPage = location === "/signin";
+
   const {
     data: store,
     isLoading,
@@ -29,6 +28,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/auth/me"],
     retry: false,
     staleTime: 5 * 60 * 1000,
+    enabled: !isSigninPage, // 🔥 THIS IS THE LOOP FIX
   });
 
   return (
@@ -45,8 +45,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     </StoreContext.Provider>
   );
 }
-
-/* ============================= HOOK ============================= */
 
 export function useStore() {
   const context = useContext(StoreContext);

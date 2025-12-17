@@ -101,6 +101,6 @@ queryClient.getQueryCache().subscribe((event) => {
     error.message.includes("401") &&
     window.location.pathname !== "/signin"
   ) {
-    window.location.href = "/signin";
+    window.location.replace("/signin");
   }
 });

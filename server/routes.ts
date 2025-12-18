@@ -57,12 +57,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const csrf = randomBytes(32).toString("hex");
     await storage.saveSquareOAuthState(csrf);
 
-    res.json({
-      state: csrf,
-      baseURL: SQUARE_OAUTH_BASE,
-      appId: process.env.SQUARE_APPLICATION_ID,
-      redirectUri: process.env.SQUARE_REDIRECT_URL,
-    });
+    const scopes =
+    "MERCHANT_PROFILE_READ PAYMENTS_WRITE INVENTORY_READ ITEMS_READ DEVICE_CREDENTIAL_MANAGEMENT";
+
+    const url =
+      `${SQUARE_OAUTH_BASE}?` +
+      `response_type=code` +
+      `&client_id=${process.env.SQUARE_APPLICATION_ID}` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&state=${csrf}` +
+      `&redirect_uri=${encodeURIComponent(process.env.SQUARE_REDIRECT_URL!)}`;
+    
+    res.setHeader("Cache-Control", "no-store");
+    res.redirect(url);
+      
   });
   
 

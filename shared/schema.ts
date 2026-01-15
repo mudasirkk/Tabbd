@@ -1,115 +1,130 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, integer, boolean, timestamp, pgEnum, } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 /**
- * STORES
- * =========================
- * id = Square merchant_id
+ * USERS
+ * id = Firebase uid
  */
-export const stores = pgTable("stores", {
-  id: varchar("id").primaryKey(), // Square merchant_id
-  name: text("name").notNull(),    // Business name from Square
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey(),
+  email: text("email"),
+  storeName: text("store_name"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
 /**
- * MENU ITEMS (store-scoped)
+ * MENU ITEMS (user-scoped)
  */
 export const menuItems = pgTable("menu_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  storeId: varchar("store_id")
-    .notNull()
-    .references(() => stores.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  description: text("description"),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   category: text("category").notNull(),
-});
-
-/**
- * SQUARE TOKENS (store-scoped)
- */
-export const squareTokens = pgTable("square_tokens", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  storeId: varchar("store_id")
-    .notNull()
-    .references(() => stores.id, { onDelete: "cascade" }),
-  accessToken: text("access_token").notNull(),
-  refreshToken: text("refresh_token"),
-  expiresAt: timestamp("expires_at"),
-  merchantId: text("merchant_id").notNull(), // redundant but useful
-});
-
-/**
- * OAUTH CSRF STATES
- * =========================
- * Keyed ONLY by state token
- */
-export const oauthStates = pgTable("oauth_states", {
-  csrfToken: varchar("csrf_token").primaryKey(),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
-
-/**
- * STORE SESSIONS (optional persistence)
- */
-export const storeSessions = pgTable("store_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  storeId: varchar("store_id")
-    .notNull()
-    .references(() => stores.id, { onDelete: "cascade" }),
-  stationId: varchar("station_id").notNull(),
-  stationName: text("station_name").notNull(),
-  stationType: text("station_type").notNull(),
-  startTime: timestamp("start_time").notNull(),
-  pausedTime: timestamp("paused_time"),
-  isPaused: text("is_paused").notNull().default("false"),
-  items: text("items").notNull().default("[]"),
+  stockQty: integer("stock_qty").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
 /**
- * INSERT SCHEMAS
+ * STATIONS (user-scoped)
  */
-export const insertStoreSchema = createInsertSchema(stores).omit({
+export const stations = pgTable("stations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  stationType: text("station_type").notNull().default("pool"),
+  rateSoloHourly: numeric("rate_solo_hourly", { precision: 10, scale: 2 }).notNull().default("0"),
+  rateGroupHourly: numeric("rate_group_hourly", { precision: 10, scale: 2 }).notNull().default("0"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const sessionStatusEnum = pgEnum("session_status", ["active", "paused", "closed"]);
+export const pricingTierEnum = pgEnum("pricing_tier", ["solo", "group"]);
+
+/**
+ * SESSIONS (user-scoped)
+ */
+export const sessions = pgTable("sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stationId: varchar("station_id").notNull().references(() => stations.id, { onDelete: "cascade" }),
+  status: sessionStatusEnum("status").notNull().default("active"),
+  startedAt: timestamp("started_at").notNull(),
+  pausedAt: timestamp("paused_at"),
+  totalPausedSeconds: integer("total_paused_seconds").notNull().default(0),
+  closedAt: timestamp("closed_at"),
+  pricingTier: pricingTierEnum("pricing_tier"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+/**
+ * SESSION ITEMS (snapshots)
+ */
+export const sessionItems = pgTable("session_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  menuItemId: varchar("menu_item_id").notNull().references(() => menuItems.id, { onDelete: "restrict" }),
+  nameSnapshot: text("name_snapshot").notNull(),
+  priceSnapshot: numeric("price_snapshot", { precision: 10, scale: 2 }).notNull(),
+  qty: integer("qty").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+/**
+ * Zod schemas
+ */
+
+export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
+});
+
+export const upsertProfileSchema = z.object({
+  storeName: z.string().min(1).max(120),
 });
 
 export const insertMenuItemSchema = createInsertSchema(menuItems).omit({
   id: true,
-});
-
-export const insertSquareTokenSchema = createInsertSchema(squareTokens).omit({
-  id: true,
-  storeId: true,
-});
-
-export const insertOAuthStateSchema = createInsertSchema(oauthStates);
-
-export const insertStoreSessionSchema = createInsertSchema(storeSessions).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const updateMenuItemSchema = insertMenuItemSchema.partial();
+
+export const insertStationSchema = createInsertSchema(stations).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateStationSchema = insertStationSchema.partial();
+
+export const startSessionSchema = z.object({
+  stationId: z.string().min(1),
+  startedAt: z.string().datetime().optional(),
+});
+
+export const addSessionItemSchema = z.object({
+  menuItemId: z.string().min(1),
+  qty: z.number().int().positive(),
 });
 
 /**
  * TYPES
  */
-export type Store = typeof stores.$inferSelect;
-export type InsertStore = z.infer<typeof insertStoreSchema>;
 
+export type User = typeof users.$inferSelect;
 export type MenuItem = typeof menuItems.$inferSelect;
-export type InsertMenuItem = z.infer<typeof insertMenuItemSchema>;
-
-export type SquareToken = typeof squareTokens.$inferSelect;
-export type InsertSquareToken = z.infer<typeof insertSquareTokenSchema>;
-
-export type OAuthState = typeof oauthStates.$inferSelect;
-export type InsertOAuthState = z.infer<typeof insertOAuthStateSchema>;
-
-export type StoreSession = typeof storeSessions.$inferSelect;
-export type InsertStoreSession = z.infer<typeof insertStoreSessionSchema>;
+export type Station = typeof stations.$inferSelect;
+export type Session = typeof sessions.$inferSelect;
+export type SessionItem = typeof sessionItems.$inferSelect;

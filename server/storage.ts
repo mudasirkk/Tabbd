@@ -1,177 +1,208 @@
 import {
-  type Store,
-  type InsertStore,
+  addSessionItemSchema,
+  menuItems,
+  sessions,
+  sessionItems,
+  stations,
+  users,
   type MenuItem,
-  type InsertMenuItem,
-  type SquareToken,
-  type InsertSquareToken,
+  type Session,
+  type SessionItem,
+  type Station,
+  type User,
 } from "@shared/schema";
-
-import { stores, menuItems, squareTokens, oauthStates } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, lt } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
-export interface IStorage {
-  // Store CRUD
-  getStoreById(id: string): Promise<Store | undefined>;
-  createStore(store: InsertStore): Promise<Store>;
-  updateStore(id: string, store: Partial<InsertStore>): Promise<Store | undefined>;
-  upsertStore(store: { id: string; name: string; email?: string | null; avatar?: string | null }): Promise<void>;
-
-  // Menu items CRUD (store-scoped)
-  getAllMenuItems(storeId: string): Promise<MenuItem[]>;
-  getMenuItem(id: string, storeId: string): Promise<MenuItem | undefined>;
-  createMenuItem(item: InsertMenuItem): Promise<MenuItem>;
-  updateMenuItem(id: string, storeId: string, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined>;
-  deleteMenuItem(id: string, storeId: string): Promise<boolean>;
-  clearAllMenuItems(storeId: string): Promise<void>;
-
-  // Square tokens (store-scoped)
-  saveSquareToken(storeId: string, token: InsertSquareToken): Promise<SquareToken>;
-  getSquareToken(storeId: string): Promise<SquareToken | undefined>;
-  deleteSquareToken(storeId: string): Promise<void>;
-
-  // OAuth states (Square-only: key by csrf token = "state")
-  saveSquareOAuthState(csrf: string): Promise<void>;
-  verifySquareOAuthState(csrf: string): Promise<boolean>;
-  deleteSquareOAuthState(csrf: string): Promise<void>;
-  cleanupExpiredSquareOAuthStates(): Promise<void>;
-}
-
-export class DatabaseStorage implements IStorage {
-  // Store methods
-  async getStoreById(id: string): Promise<Store | undefined> {
-    const [store] = await db.select().from(stores).where(eq(stores.id, id));
-    return store || undefined;
-  }
-
-  async createStore(store: InsertStore): Promise<Store> {
-    const [created] = await db.insert(stores).values(store).returning();
-    return created;
-  }
-
-  async updateStore(id: string, store: Partial<InsertStore>): Promise<Store | undefined> {
-    const [updated] = await db
-      .update(stores)
-      .set({ ...store, updatedAt: new Date() })
-      .where(eq(stores.id, id))
-      .returning();
-    return updated || undefined;
-  }
-
-  /**
-   * Square-only: merchantId becomes store.id.
-   * Use onConflictDoUpdate so the business name can be refreshed.
-   */
-  async upsertStore(store: { id: string; name: string }): Promise<void> {
-    await db
-      .insert(stores)
+export class DatabaseStorage {
+  // ---- Users ----
+  async upsertUser(params: { id: string; email?: string | null}) : Promise<User> {
+    const[row] = await db
+      .insert(users)
       .values({
-        id: store.id,
-        name: store.name,
+        id: params.id,
+        email: params.email ?? null,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: stores.id,
-        set: {
-          name: store.name,
-          updatedAt: new Date(),
-        },
-      });
+        target: users.id,
+        set: {email: params.email ?? null, updatedAt: new Date() },
+      })
+      .returning();
+    return row;
+  }
+
+  async getUserById(userId: string): Promise<User | undefined> {
+    const[row] = await db.select().from(users).where(eq(users.id,userId)).limit(1);
+    return row || undefined
+  }
+
+  async updatedProfile(userId: string, storeName: string): Promise<User> {
+    const [row] = await db
+      .update(users)
+      .set({storeName, updatedAt: new Date()})
+      .where(eq(users.id, userId))
+      .returning();
+    return row;
+  }
+
+  // ---- Menu ----
+  async listMenu(userId: string): Promise<MenuItem[]> {
+    return db.select().from(menuItems).where(eq(menuItems.userId, userId)).orderBy(desc(menuItems.updatedAt));
   }
   
-
-  // Menu items (store-scoped)
-  async getAllMenuItems(storeId: string): Promise<MenuItem[]> {
-    return await db.select().from(menuItems).where(eq(menuItems.storeId, storeId));
+  async createMenuItem(userId: string, data: any): Promise<MenuItem> {
+    const [row] = await db
+      .insert(menuItems)
+      .values({
+        userId,
+        name: data.name,
+        description: data.description ?? null,
+        price: data.price,
+        category: data.category,
+        stockQty: data.stockQty ?? 0,
+        isActive: data.isActive ?? true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return row;
   }
 
-  async getMenuItem(id: string, storeId: string): Promise<MenuItem | undefined> {
-    const [item] = await db
-      .select()
-      .from(menuItems)
-      .where(and(eq(menuItems.id, id), eq(menuItems.storeId, storeId)));
-    return item || undefined;
-  }
-
-  async createMenuItem(item: InsertMenuItem): Promise<MenuItem> {
-    const [created] = await db.insert(menuItems).values(item).returning();
-    return created;
-  }
-
-  async updateMenuItem(id: string, storeId: string, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined> {
-    const [updated] = await db
+  async updateMenuItem(userId: string, id: string, patch: Partial<MenuItem>): Promise<MenuItem | undefined> {
+    const[row] = await db
       .update(menuItems)
-      .set(item)
-      .where(and(eq(menuItems.id, id), eq(menuItems.storeId, storeId)))
+      .set({ ...patch, updatedAt: new Date() } as any)
+      .where(and(eq(menuItems.userId, userId), eq(menuItems.id, id)))
       .returning();
-    return updated || undefined;
+    return row || undefined;
   }
 
-  async deleteMenuItem(id: string, storeId: string): Promise<boolean> {
-    const result = await db
-      .delete(menuItems)
-      .where(and(eq(menuItems.id, id), eq(menuItems.storeId, storeId)))
+  async deleteMenuItem(userId: string, id: string): Promise<boolean> {
+    const rows = await db.delete(menuItems).where(and(eq(menuItems.userId, userId), eq( menuItems.id, id))).returning();
+    return rows.length > 0;
+  }
+
+  // ---- Stations ----
+  async listStations(userId: string): Promise<Station[]> {
+    return db.select().from(stations).where(eq(stations.userId, userId)).orderBy(desc(stations.updatedAt));
+  }
+
+  async createStation(userId: string, data: any): Promise<Station> {
+    const[row] = await db
+      .insert(stations)
+      .values({ userId, ...data, createdAt: new Date(), updatedAt: new Date() })
       .returning();
-    return result.length > 0;
+    return row;
   }
 
-  async clearAllMenuItems(storeId: string): Promise<void> {
-    await db.delete(menuItems).where(eq(menuItems.storeId, storeId));
+  async updateStation(userId: string, id: string, patch: Partial<Station>): Promise<Station | undefined> {
+    const[row] = await db
+      .update(stations)
+      .set({ ...patch, updatedAt: new Date() } as any)
+      .where(and(eq(stations.userId, userId), eq(stations.id, id)))
+      .returning();
+    return row || undefined;
   }
 
-  // OAuth states (Square-only)
-  async saveSquareOAuthState(csrf: string): Promise<void> {
-    // If you want: allow multiple outstanding attempts (fine).
-    // If you want only one globally, you'd delete all first.
-    await db.insert(oauthStates).values({
-      csrfToken: csrf,
-      createdAt: new Date(),
-    });
-  }
-
-  async verifySquareOAuthState(csrf: string): Promise<boolean> {
-    const [state] = await db
+  // ---- Sessions ----
+  async getActiveSessionForStation(userId: string, stationId: string): Promise<Session | undefined> {
+    const[row] = await db
       .select()
-      .from(oauthStates)
-      .where(eq(oauthStates.csrfToken, csrf))
+      .from(sessions)
+      .where(and(eq(sessions.userId, userId), eq(sessions.stationId, stationId), sql`${sessions.status} != 'closed'`))
+      .orderBy(desc(sessions.createdAt))
       .limit(1);
-
-    if (!state) return false;
-
-    // expire after 10 minutes
-    const expired = Date.now() - state.createdAt.getTime() > 10 * 60 * 1000;
-    if (expired) {
-      await this.deleteSquareOAuthState(csrf);
-      return false;
-    }
-
-    return true;
+    return row || undefined;
   }
 
-  async deleteSquareOAuthState(csrf: string): Promise<void> {
-    await db.delete(oauthStates).where(eq(oauthStates.csrfToken, csrf));
+  async startSession(userId: string, stationId: string, startedAt: Date): Promise<Session> {
+    const existing = await this.getActiveSessionForStation(userId, stationId);
+    if(existing) return existing;
+
+    const[row] = await db
+      .insert(sessions)
+      .values({ userId, stationId, status: "active", startedAt, createdAt: new Date() })
+      .returning()
+    return row;
   }
 
-  async cleanupExpiredSquareOAuthStates(): Promise<void> {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    await db.delete(oauthStates).where(lt(oauthStates.createdAt, tenMinutesAgo));
+  async pauseSession(userId: string, sessionId: string): Promise<Session | undefined> {
+    const[row] = await db
+      .update(sessions)
+      .set({ status:"paused", pausedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId), eq(sessions.status, "active")))
+      .returning();
+    return row || undefined;
   }
 
-  // Square tokens (store-scoped)
-  async saveSquareToken(storeId: string, token: InsertSquareToken): Promise<SquareToken> {
-    await db.delete(squareTokens).where(eq(squareTokens.storeId, storeId));
-    const [created] = await db.insert(squareTokens).values({ ...token, storeId }).returning();
-    return created;
+  async resumeSession(userId: string, sessionId: string): Promise<Session | undefined> {
+    const [current] = await db.select().from(sessions).where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId))).limit(1);
+    if(!current || current.status !== "paused" || !current.pausedAt) return undefined;
+
+    const deltaSeconds = Math.max(0, Math.floor((Date.now() - current.pausedAt.getTime()) / 1000));
+    const [row] = await db
+      .update(sessions)
+      .set({
+        status: "active",
+        pausedAt: null,
+        totalPausedSeconds: (current.totalPausedSeconds ?? 0) + deltaSeconds,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
+      .returning();
+    return row || undefined;
   }
 
-  async getSquareToken(storeId: string): Promise<SquareToken | undefined> {
-    const [token] = await db.select().from(squareTokens).where(eq(squareTokens.storeId, storeId)).limit(1);
-    return token || undefined;
+  async closeSession(userId: string, sessionId: string, pricingTier?: "solo" | "group"): Promise<Session | undefined> {
+    const [row] = await db
+      .update(sessions)
+      .set({ status: "closed", pricingTier: pricingTier ?? null, closedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
+      .returning();
+    return row || undefined;
   }
 
-  async deleteSquareToken(storeId: string): Promise<void> {
-    await db.delete(squareTokens).where(eq(squareTokens.storeId, storeId));
+  async listSessionItems(userId: string, sessionId: string): Promise<SessionItem[]> {
+    const [sess] = await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId))).limit(1);
+    if (!sess) return [];
+    return db.select().from(sessionItems).where(eq(sessionItems.sessionId, sessionId)).orderBy(desc(sessionItems.createdAt));
+  }
+
+  //  Stockqty decrement transaction here
+  async addItemToSession(userId: string, sessionId: string, input: unknown): Promise<{ sessionItem: SessionItem; menuItem: MenuItem }> {
+    const { menuItemId, qty } = addSessionItemSchema.parse(input);
+
+    return await db.transaction(async (tx) => {
+      const [sess] = await tx.select().from(sessions).where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId))).limit(1);
+      if (!sess) throw new Error("Session not found");
+      if (sess.status === "closed") throw new Error("Session is closed");
+
+      const [item] = await tx.select().from(menuItems).where(and(eq(menuItems.userId, userId), eq(menuItems.id, menuItemId))).limit(1);
+      if (!item) throw new Error("Menu item not found");
+      if (!item.isActive) throw new Error("Menu item is inactive");
+      if ((item.stockQty ?? 0) < qty) throw new Error("Insufficient stock");
+
+      const [updatedMenuItem] = await tx
+        .update(menuItems)
+        .set({ stockQty: (item.stockQty ?? 0) - qty, updatedAt: new Date() })
+        .where(and(eq(menuItems.userId, userId), eq(menuItems.id, menuItemId)))
+        .returning();
+
+      const [createdSessionItem] = await tx
+        .insert(sessionItems)
+        .values({
+          sessionId,
+          menuItemId,
+          nameSnapshot: item.name,
+          priceSnapshot: item.price,
+          qty,
+          createdAt: new Date(),
+        })
+        .returning();
+
+      return { sessionItem: createdSessionItem, menuItem: updatedMenuItem };
+    });
   }
 }
 

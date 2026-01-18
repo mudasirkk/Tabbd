@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
@@ -9,6 +9,10 @@ import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { TransferSessionDialog } from "@/components/TransferSessionDialog";
 import { PaymentProcessingOverlay } from "@/components/PaymentProcessingOverlay";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { fetchWithAuth, postWithAuth } from "@/lib/api";
+import { auth } from "@/lib/firebaseClient";
+import { signOut } from "firebase/auth";
 import {
   Select,
   SelectContent,
@@ -16,153 +20,291 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useStore } from "@/contexts/StoreContext";
 
 /* ============================= TYPES ============================= */
 
-interface Store {
+type PricingTier = "group" | "solo"
+
+interface MeResponse {
+  uid: string;
+  email: string | null;
+  storeName: string | null;
+}
+
+interface ApiSessionItem {
   id: string;
-  name: string;
+  sessionId: string;
+  menuItemId: string;
+  nameSnapshot: string;
+  priceSnapshot: string | number;
+  qty: number;
+  createdAt: string;
 }
 
-interface StoredSessionItem {
-  itemId: string;
-  name: string;
-  quantity: number;
-  price: number;
-}
-
-interface Station {
+interface ApiSession {
   id: string;
-  name: string;
-  type: StationType;
-  isActive: boolean;
-  isPaused?: boolean;
-  startTime?: number;
-  pausedTime?: number;
-  items: StoredSessionItem[];
+  userId: string;
+  stationId: string;
+  status: "active" | "paused" | "closed";
+  startedAt: string;
+  pausedAt: string | null;
+  totalPausedSeconds: number;
+  pricingTier: PricingTier | null;
+  closedAt: string | null;
+  items?: ApiSessionItem[];
 }
 
-/* ============================= CONSTANTS ============================= */
+interface ApiStation {
+  id: string;
+  userId: string;
+  name: string;
+  stationType: StationType;
+  rateSoloHourly: string | number;
+  rateGroupHourly: string | number;
+  isEnabled: boolean;
+  activeSession: (ApiSession & { items: ApiSessionItem[] }) | null;
+}
 
-const HOURLY_RATE = 16;
-const RATE_PER_SECOND = HOURLY_RATE / 3600;
+/* ============================= Helpers ============================= */
+function toNumber(v: string | number | null | undefined): number {
+  if(v === null || v === undefined) return 0;
+  return typeof v === "number" ? v : Number(v);
+}
 
-const STORAGE_KEY = "poolcafe_stations";
-
-const initialStations: Station[] = [
-  { id: "P1", name: "Left 1", type: "pool", isActive: false, items: [] },
-  { id: "P2", name: "Left 2", type: "pool", isActive: false, items: [] },
-  { id: "P3", name: "Left 3", type: "pool", isActive: false, items: [] },
-  { id: "P4", name: "Right 1", type: "pool", isActive: false, items: [] },
-  { id: "P5", name: "Right 2", type: "pool", isActive: false, items: [] },
-  { id: "P6", name: "Right 3", type: "pool", isActive: false, items: [] },
-  { id: "G1", name: "Gaming Left", type: "gaming", isActive: false, items: [] },
-  { id: "G2", name: "Gaming Right", type: "gaming", isActive: false, items: [] },
-  { id: "G3", name: "Gaming Station 3", type: "gaming", isActive: false, items: [] },
-  { id: "F1", name: "Foosball Table", type: "foosball", isActive: false, items: [] },
-];
-
-function loadStations(): Station[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : initialStations;
-  } catch {
-    return initialStations;
+function aggregateSessionItems(items: ApiSessionItem[]): SessionItem[] {
+  const map = new Map<string, SessionItem>();
+  for (const row of items) {
+    const key = row.menuItemId; // Aggregate by menu item
+    const price = toNumber(row.priceSnapshot);
+    const existing = map.get(key);
+    if(!existing) {
+      map.set(key, {
+        id: row.menuItemId,
+        name: row.nameSnapshot,
+        price,
+        quantity: row.qty,
+      });
+    } else {
+      existing.quantity += row.qty;
+    }
   }
+  return Array.from(map.values());
+}
+
+function computeElapsedSeconds(session: ApiSession, nowMs: number): number {
+  const startMs = new Date(session.startedAt).getTime();
+  const endMs = 
+    session.status === "paused" && session.pausedAt
+      ? new Date(session.pausedAt).getTime()
+      : nowMs;
+  const total = Math.max(0, Math.floor((endMs - startMs) / 1000));
+  return Math.max(0, total - (session.totalPausedSeconds ?? 0));
 }
 
 /* ============================= COMPONENT ============================= */
 
 export default function Dashboard() {
     const { toast } = useToast();
-    const { store } = useStore();
+    const qc = useQueryClient();
   
-    /* ---------- AUTH ---------- */
-    const {
-      data: storeData,
-      isLoading: authLoading,
-    } = useQuery<Store>({
-      queryKey: ["/api/auth/me"],
-      retry: false,
-    });
+    const[now, setNow] = useState(Date.now());
   
-    /* ---------- STATE (MUST BE BEFORE ANY RETURN) ---------- */
-    const [currentTime, setCurrentTime] = useState(Date.now());
-    const [stations, setStations] = useState<Station[]>(loadStations);
+    //right side panel selection
     const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
-  
+
+    //dialogs
     const [startSessionOpen, setStartSessionOpen] = useState(false);
-    const [stationToStart, setStationToStart] = useState<string | null>(null);
-  
+    const [stationToStart, setStationToStart] = useState<ApiStation | null>(null);
+
     const [addItemsOpen, setAddItemsOpen] = useState(false);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
     const [transferOpen, setTransferOpen] = useState(false);
-  
+
+    //add-items local selection before confirm
     const [tempItems, setTempItems] = useState<Record<string, number>>({});
+
+    // payment overlay (still optional UI)
     const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
     const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
-  
-    /* ---------- DATA ---------- */
-    const { data: menuItems } = useQuery<MenuItem[]>({
-      queryKey: ["/api/menu-items"],
-    });
-  
-    const { data: squareDevices } = useQuery<any>({
-      queryKey: ["/api/square/devices"],
-    });
-  
-    /* ---------- EFFECTS ---------- */
+
     useEffect(() => {
-      if (window.location.hash === "#_=_") {
-        history.replaceState(null, "", window.location.pathname);
-      }
-    }, []);
-  
-  
-    useEffect(() => {
-      const id = setInterval(() => setCurrentTime(Date.now()), 1000);
+      const id = setInterval(() => setNow(Date.now()), 1000);
       return () => clearInterval(id);
     }, []);
-  
-    useEffect(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stations));
-    }, [stations]);
-  
-    /* ---------- SAFE CONDITIONAL RENDER ---------- */
-    if (authLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <p>Loading…</p>
-        </div>
-      );
+
+  /* ---------- DATA ---------- */
+
+  const{ data: me, isLoading: meLoading, error:meError } = useQuery<MeResponse>({
+    queryKey: ["me"],
+    queryFn: () => fetchWithAuth<MeResponse>("/api/me"),
+    retry: false,
+  });
+
+  const { data: menu } = useQuery<MenuItem[]>({
+    queryKey: ["menu"],
+    queryFn: () => fetchWithAuth<MenuItem[]>("/api/menu"),
+    retry: false,
+  });
+
+  const { data: stations, isLoading: stationsLoading } = useQuery<ApiStation[]>({
+    queryKey: ["stations"],
+    queryFn: () => fetchWithAuth<ApiStation[]>("/api/stations"),
+    retry: false,
+  });
+
+  // If token expired / logged out
+  useEffect(() => {
+    if (meError) {
+      window.location.replace("/signin");
     }
+  }, [meError]);
+
+  const selectedStation = useMemo(() => {
+    if (!stations || !selectedStationId) return null;
+    return stations.find((s) => s.id === selectedStationId) ?? null;
+  }, [stations, selectedStationId]);
+
+  const activeStations = useMemo(
+    () => (stations ?? []).filter((s) => s.activeSession && s.activeSession.status !== "closed"),
+    [stations]
+  );
+
+  const activeStationsCount = activeStations.length;
   
-  /* ---------- HELPERS ---------- */
+  function getTimeElapsedForStation(st: ApiStation): number {
+    if (!st.activeSession) return 0;
+    return computeElapsedSeconds(st.activeSession, now);
+  }
 
-  const selectedStation = stations.find((s) => s.id === selectedStationId);
+  function getTimeChargeForStation(st: ApiStation, pricingTier: PricingTier = "group"): number {
+    if (!st.activeSession) return 0;
+    const elapsed = computeElapsedSeconds(st.activeSession, now);
+    const rate =
+      pricingTier === "solo" ? toNumber(st.rateSoloHourly) : toNumber(st.rateGroupHourly);
+    return (elapsed / 3600) * rate;
+  }
 
-  const getTimeElapsed = (station: Station) => {
-    if (!station.isActive || !station.startTime) return 0;
-    const end =
-      station.isPaused && station.pausedTime ? station.pausedTime : currentTime;
-    return Math.floor((end - station.startTime) / 1000);
-  };
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+    } finally {
+      window.location.replace("/signin");
+    }
+  }
 
-  const getTimeCharge = (station: Station) =>
-    getTimeElapsed(station) * RATE_PER_SECOND;
+  async function handleConfirmAddItems(st: ApiStation) {
+    const session = st.activeSession;
+    if (!session) return;
 
-  const getSessionItems = (station: Station): SessionItem[] =>
-    station.items.map((i) => ({
-      id: i.itemId,
-      name: i.name,
-      price: i.price,
-      quantity: i.quantity,
-    }));
+    const entries = Object.entries(tempItems).filter(([, qty]) => qty > 0);
+    if (entries.length === 0) {
+      setAddItemsOpen(false);
+      return;
+    }
 
-  const activeStationsCount = stations.filter((s) => s.isActive).length;
+    try {
+      // send items sequentially (simple + predictable). You can batch later if desired.
+      for (const [menuItemId, qty] of entries) {
+        await postWithAuth(`/api/sessions/${session.id}/items`, { menuItemId, qty });
+      }
+
+      toast({ title: "Items added", description: "Stock updated and items added to the tab." });
+      setTempItems({});
+      setAddItemsOpen(false);
+
+      // refresh stations + menu stock
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+      await qc.invalidateQueries({ queryKey: ["menu"] });
+    } catch (e: any) {
+      toast({
+        title: "Couldn’t add items",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleStartSession(st: ApiStation, customStartTime?: number | null) {
+    try {
+      await postWithAuth("/api/sessions/start", {
+        stationId: st.id,
+        startedAt: customStartTime ? new Date(customStartTime).toISOString() : undefined,
+      });
+
+      toast({ title: "Session started", description: `${st.name} is now active.` });
+
+      setStartSessionOpen(false);
+      setStationToStart(null);
+      setSelectedStationId(st.id);
+
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to start session",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handlePause(st: ApiStation) {
+    if (!st.activeSession) return;
+    try {
+      await postWithAuth(`/api/sessions/${st.activeSession.id}/pause`);
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to pause",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleResume(st: ApiStation) {
+    if (!st.activeSession) return;
+    try {
+      await postWithAuth(`/api/sessions/${st.activeSession.id}/resume`);
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to resume",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleCheckoutConfirm(st: ApiStation, pricingTier: PricingTier, grandTotal: number) {
+    if (!st.activeSession) return;
+
+    try {
+      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, { pricingTier });
+
+      setCheckoutOpen(false);
+      setPaymentData({
+        totalAmount: grandTotal,
+        itemCount: (st.activeSession.items ?? []).reduce((sum, row) => sum + row.qty, 0),
+      });
+      setShowPaymentProcessing(true);
+
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to checkout",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  if (meLoading || stationsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading…</p>
+      </div>
+    );
+  }
 
   /* ============================= RENDER ============================= */
 
@@ -171,27 +313,24 @@ export default function Dashboard() {
       <header className="border-b sticky top-0 bg-background z-10">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">Rack Em Up</h1>
-            <p className="text-sm text-muted-foreground">Pool Cafe Management</p>
+            <h1 className="text-2xl font-bold">{me?.storeName ?? "Tabb'd"}</h1>
+            <p className="text-sm text-muted-foreground">
+              Station & Tab Dashboard
+            </p>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="hidden sm:block text-right">
-              <p className="text-xs text-muted-foreground">Signed in as</p>
-              <p className="font-semibold">{storeData?.name ?? "Store"}</p>
-            </div>
-
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                try {
-                  await apiRequest("POST", "/api/auth/disconnect");
-                } finally {
-                  window.location.replace("/signin");
-                }
-              }}
-            >
-              Disconnect
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button variant="outline" onClick={() => window.location.assign("/menu")}>
+              <Settings className="w-4 h-4 mr-2" />
+              Menu
+            </Button>
+            <Button variant="outline" onClick={() => window.location.assign("/profile")}>
+              <UserIcon className="w-4 h-4 mr-2" />
+              Profile
+            </Button>
+            <Button variant="destructive" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Log out
             </Button>
           </div>
         </div>
@@ -199,57 +338,45 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Stations grid*/}
           <div className="lg:col-span-2">
             <h2 className="text-xl font-semibold mb-4">All Stations</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {stations.map((station) => (
-                <StationCard
-                  key={station.id}
-                  {...station}
-                  timeElapsed={getTimeElapsed(station)}
-                  currentCharge={getTimeCharge(station)}
-                  onStart={() => {
-                    setStationToStart(station.id);
-                    setStartSessionOpen(true);
-                  }}
-                  onStop={() =>
-                    setStations((p) =>
-                      p.map((s) =>
-                        s.id === station.id
-                          ? { ...s, isPaused: true, pausedTime: Date.now() }
-                          : s
-                      )
-                    )
-                  }
-                  onResume={() =>
-                    setStations((p) =>
-                      p.map((s) =>
-                        s.id === station.id && s.pausedTime && s.startTime
-                          ? {
-                              ...s,
-                              isPaused: false,
-                              startTime:
-                                s.startTime + (Date.now() - s.pausedTime),
-                              pausedTime: undefined,
-                            }
-                          : s
-                      )
-                    )
-                  }
-                  onCompletePayment={() => {
-                    setSelectedStationId(station.id);
-                    setCheckoutOpen(true);
-                  }}
-                  onClick={() =>
-                    station.isActive && setSelectedStationId(station.id)
-                  }
-                />
-              ))}
+              {(stations ?? []).map((st) => {
+                const session = st.activeSession;
+                const isActive = !!session && session.status !== "closed";
+                const isPaused = session?.status === "paused";
+
+                return(
+                  <StationCard
+                    key={st.id}
+                    id={st.id}
+                    name={st.name}
+                    type={st.stationType}
+                    isActive={isActive}
+                    isPaused={isPaused}
+                    startTime={session ? new Date(session.startedAt).getTime() : undefined}
+                    timeElapsed={isActive ? getTimeChargeForStation(st, "group") : 0}
+                    onStart={() => {
+                      setStationToStart(st);
+                      setStartSessionOpen(true);
+                    }}
+                    onStop={() => handlePause(st)}
+                    onResume={() => handleResume(st)}
+                    onCompletePayment={() => {
+                      setSelectedStationId(st.id);
+                      setCheckoutOpen(true);
+                    }}
+                    onClick={() => isActive && setSelectedStationId(st.id)}
+                    />
+                );
+              })}
             </div>
           </div>
 
+          {/* Right Panel */}
           <div className="lg:col-span-1">
-            {selectedStation?.isActive ? (
+            {selectedStation?.activeSession && selectedStation.activeSession.status !== "closed" ? (
               <div className="sticky top-24 space-y-4">
                 {activeStationsCount > 1 && (
                   <Select
@@ -260,23 +387,21 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {stations
-                        .filter((s) => s.isActive)
-                        .map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
+                      {activeStations.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
 
                 <ActiveSessionPanel
                   stationName={selectedStation.name}
-                  timeElapsed={getTimeElapsed(selectedStation)}
-                  timeCharge={getTimeCharge(selectedStation)}
-                  startTime={selectedStation.startTime}
-                  items={getSessionItems(selectedStation)}
+                  timeElapsed={getTimeElapsedForStation(selectedStation)}
+                  timeCharge={getTimeChargeForStation(selectedStation)}
+                  startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
+                  items={aggregateSessionItems(selectedStation.activeSession.items ?? [])}
                   onAddItems={() => setAddItemsOpen(true)}
                   onCheckout={() => setCheckoutOpen(true)}
                   onTransfer={() => setTransferOpen(true)}
@@ -294,90 +419,68 @@ export default function Dashboard() {
         </div>
       </main>
 
+      {/* Start Session */}
       <StartSessionDialog
         open={startSessionOpen}
         onOpenChange={setStartSessionOpen}
-        stationName={
-          stationToStart
-            ? stations.find((s) => s.id === stationToStart)?.name || ""
-            : ""
-        }
+        stationName={stationToStart?.name ?? ""}
         onConfirmStart={(customStartTime) => {
-          if (!stationToStart) return;
-          setStations((p) =>
-            p.map((s) =>
-              s.id === stationToStart
-                ? {
-                    ...s,
-                    isActive: true,
-                    startTime: customStartTime ?? Date.now(),
-                    items: [],
-                  }
-                : s
-            )
-          );
-          setSelectedStationId(stationToStart);
+          if(!stationToStart) return;
+          handleStartSession(stationToStart, customStartTime ?? null);
         }}
       />
 
-      {selectedStation && (
+      {/* Active station dialogs */}
+      {selectedStation?.activeSession && selectedStation.activeSession.status !== "closed" ? (
         <>
           <AddItemsDialog
             open={addItemsOpen}
             onOpenChange={setAddItemsOpen}
             stationName={selectedStation.name}
-            menuItems={menuItems || []}
+            menuItems={menu ?? []}
             selectedItems={tempItems}
-            onAddItem={(id) =>
-              setTempItems((p) => ({ ...p, [id]: (p[id] || 0) + 1 }))
-            }
+            onAddItem={(id) => setTempItems((p) => ({ ...p, [id]: (p[id] || 0) + 1 }))}
             onRemoveItem={(id) =>
               setTempItems((p) => {
-                const v = (p[id] || 0) - 1;
-                if (v <= 0) {
+                const v = (p[id] || 0) -1;
+                if(v <= 0) {
                   const { [id]: _, ...rest } = p;
                   return rest;
                 }
                 return { ...p, [id]: v };
               })
             }
-            onConfirm={() => setAddItemsOpen(false)}
-            squareConnected={true}
-            onConnectSquare={() => {}}
-          />
+            onConfirm={() => handleConfirmAddItems(selectedStation)}
+        />
 
-          <CheckoutDialog
+        <CheckoutDialog
             open={checkoutOpen}
             onOpenChange={setCheckoutOpen}
             stationName={selectedStation.name}
-            stationType={selectedStation.type}
-            timeElapsed={getTimeElapsed(selectedStation)}
-            timeCharge={getTimeCharge(selectedStation)}
-            items={getSessionItems(selectedStation)}
-            devices={squareDevices?.device_codes || []}
-            squareConnected={true}
-            onConfirmCheckout={({ grandTotal }) => {
-              setPaymentData({
-                totalAmount: grandTotal,
-                itemCount: selectedStation.items.reduce(
-                  (s, i) => s + i.quantity,
-                  0
-                ),
-              });
-              setShowPaymentProcessing(true);
-              setCheckoutOpen(false);
-            }}
+            stationType={selectedStation.stationType}
+            timeElapsed={getTimeElapsedForStation(selectedStation)}
+            // will be recalculated inside dialog based on pricing tier + rates
+            groupHourlyRate={toNumber(selectedStation.rateGroupHourly)}
+            soloHourlyRate={toNumber(selectedStation.rateSoloHourly)}
+            items={aggregateSessionItems(selectedStation.activeSession.items ?? [])}
+            onConfirmCheckout={({ pricingTier, grandTotal }) =>
+              handleCheckoutConfirm(selectedStation, pricingTier, grandTotal)
+            }
           />
 
-          <TransferSessionDialog
-            open={transferOpen}
-            onOpenChange={setTransferOpen}
-            currentStationName={selectedStation.name}
-            availableStations={stations.filter((s) => !s.isActive)}
-            onConfirmTransfer={() => setTransferOpen(false)}
-          />
+        <TransferSessionDialog
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+        currentStationName={selectedStation.name}
+        availableStations={(stations ?? []).filter((s) => !s.activeSession || s.activeSession.status === "closed").map((s) => ({id: s.id, name: s.name, stationType: s.stationType }))}
+        onConfirmTransfer={() => {
+          //NOTE: transfer API not wired
+          setTransferOpen(false);
+          toast({ title: "Transfer", description: "Transfer wiring can be enabled next." });
+        }}
+        />
         </>
-      )}
+      ) : null}
 
       <PaymentProcessingOverlay
         show={showPaymentProcessing}

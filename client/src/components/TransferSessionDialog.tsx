@@ -15,8 +15,7 @@ import { StationType } from "./StationCard";
 interface Station {
   id: string;
   name: string;
-  type: StationType;
-  isActive: boolean;
+  stationType: StationType;
 }
 
 interface TransferSessionDialogProps {
@@ -48,10 +47,10 @@ export function TransferSessionDialog({
 }: TransferSessionDialogProps) {
   // Group stations by type
   const groupedStations = availableStations.reduce((acc, station) => {
-    if (!acc[station.type]) {
-      acc[station.type] = [];
+    if (!acc[station.stationType]) {
+      acc[station.stationType] = [];
     }
-    acc[station.type].push(station);
+    acc[station.stationType].push(station);
     return acc;
   }, {} as Record<StationType, Station[]>);
 
@@ -92,7 +91,7 @@ export function TransferSessionDialog({
                         variant="outline"
                         className={cn(
                           "w-full justify-start gap-3 h-auto py-3 hover-elevate border-l-4",
-                          stationColors[station.type]
+                          stationColors[station.stationType]
                         )}
                         onClick={() => handleTransfer(station.id)}
                         data-testid={`button-transfer-to-${station.id}`}

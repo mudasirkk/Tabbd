@@ -1,6 +1,4 @@
-import { SQLiteRawConfig } from "drizzle-orm/sqlite-core/query-builders/raw";
 import { auth } from "./firebaseClient";
-import { unknown } from "zod";
 
 export async function fetchWithAuth<T>(url: string, init: RequestInit = {}): Promise<T> {
     const user = auth.currentUser;

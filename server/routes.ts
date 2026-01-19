@@ -134,18 +134,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to update station" });
     }
   });
-  
+
+  //Delete
+  app.delete("/api/stations/:id", requireAuth, async (req, res) => {
+    try {
+      const uid = getUserId(req);
+      const ok = await storage.deleteStation(uid, req.params.id);
+      if (!ok) return res.status(404).json({ error: "Station not found" });
+      res.status(204).send();
+    } catch (err: any) {
+      // storage throws this when station has active session
+      if (err?.message?.includes("active session")) {
+        return res.status(400).json({ error: err.message });
+      }
+      console.error("[STATIONS] delete error:", err);
+      res.status(500).json({ error: "Failed to delete station" });
+    }
+  });  
+
   // Sessions
 
   //Start
   app.post("/api/sessions/start", requireAuth, async (req, res) => {
     try {
       const uid = getUserId(req);
-      const { stationId, startedAt } = startSessionSchema.parse(req.body);
+      const { stationId, pricingTier, startedAt } = startSessionSchema.parse(req.body);
       const start = startedAt ? new Date(startedAt) : new Date();
-      res.status(201).json(await storage.startSession(uid, stationId, start));
-    } catch (err) {
+      res.status(201).json(await storage.startSession(uid, stationId, pricingTier, start));
+    } catch (err : any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
+      if (err?.message) return res.status(400).json({ error: err.message });
       res.status(500).json({ error: "Failed to start session" });
     }
   });
@@ -168,11 +186,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   //Close
   app.post("/api/sessions/:id/close", requireAuth, async (req, res) => {
-    const uid = getUserId(req);
-    const pricingTier = z.enum(["solo", "group"]).optional().parse(req.body?.pricingTier);
-    const session = await storage.closeSession(uid, req.params.id, pricingTier);
-    if (!session) return res.status(404).json({ error: "Session not found" });
-    res.json(session);
+    try{
+      const uid = getUserId(req);
+      const session = await storage.closeSession(uid, req.params.id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+      res.json(session);
+    } catch (err: any) {
+      if (err?.message) return res.status(400).json({ error: err.message });
+      res.status(500).json({ error: "Failed to close session" });
+    }
   });
 
   //Items

@@ -1,5 +1,4 @@
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import "dotenv/config";
@@ -41,22 +40,6 @@ app.use((req, res, next) => {
 
   next();
 });
-
-app.use(
-  session({
-    name: "tabbd.sid",
-    secret: process.env.SESSION_SECRET!,
-    resave: false,
-    saveUninitialized: false,
-    proxy: true, // 🔴 REQUIRED
-    cookie: {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-    },
-  })
-);
 
 (async () => {
   console.log("BOOT: registering routes");

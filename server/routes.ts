@@ -9,11 +9,9 @@ import {
   updateMenuItemSchema,
   updateStationSchema,
   upsertProfileSchema,
-} from "@shared/schema"
+} from "@shared/schema";
 import { requireAuth, getUserId } from "./middleware/auth";
 import { storage } from "./storage";
-import { error } from "console";
-  
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Bootstrap user row
@@ -37,8 +35,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const uid = getUserId(req);
       const { storeName } = upsertProfileSchema.parse(req.body);
-      const user = await storage.updatedProfile(uid, storeName);
-      res.json({ uid: user.id, email: user.email ?? null, storeName:user.storeName ?? null});
+      const user = await storage.updateProfile(uid, storeName);
+      res.json({ uid: user.id, email: user.email ?? null, storeName: user.storeName ?? null});
     } catch (err) {
       if(err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
       console.error("[PROFILE] Error:", err);

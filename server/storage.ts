@@ -37,7 +37,7 @@ export class DatabaseStorage {
     return row || undefined
   }
 
-  async updatedProfile(userId: string, storeName: string): Promise<User> {
+  async updateProfile(userId: string, storeName: string): Promise<User> {
     const [row] = await db
       .update(users)
       .set({storeName, updatedAt: new Date()})

@@ -104,6 +104,33 @@ export class DatabaseStorage {
     return row || undefined;
   }
 
+  //Update Station
+  async deleteStation(userId: string, id: string): Promise<boolean> {
+    // Block delete if there is any non-closed session for this station
+    const active = await db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          eq(sessions.stationId, id),
+          sql`${sessions.status} != 'closed'`
+        )
+      )
+      .limit(1);
+
+    if (active.length > 0) {
+      throw new Error("Cannot delete station with an active session");
+    }
+
+    const rows = await db
+      .delete(stations)
+      .where(and(eq(stations.userId, userId), eq(stations.id, id)))
+      .returning();
+
+    return rows.length > 0;
+  }
+
   // ---- Sessions ----
   async getActiveSessionForStation(userId: string, stationId: string): Promise<Session | undefined> {
     const[row] = await db
@@ -115,13 +142,26 @@ export class DatabaseStorage {
     return row || undefined;
   }
 
-  async startSession(userId: string, stationId: string, startedAt: Date): Promise<Session> {
+  async startSession(userId: string, stationId: string, pricingTier: "solo" | "group", startedAt: Date): Promise<Session> {
     const existing = await this.getActiveSessionForStation(userId, stationId);
     if(existing) return existing;
 
+    const[station] = await db
+      .select()
+      .from(stations)
+      .where(and(eq(stations.userId, userId), eq(stations.id, stationId)))
+      .limit(1);
+
+    if(!station) throw new Error("Station not found");
+
+    // Drizzle numeric is usually returned as string → keep snapshot as string
+    const rateHourlySnapshot =
+    pricingTier === "group" ? station.rateGroupHourly : station.rateSoloHourly;
+
+
     const[row] = await db
       .insert(sessions)
-      .values({ userId, stationId, status: "active", startedAt, createdAt: new Date() })
+      .values({ userId, stationId, status: "active", startedAt, pricingTier, rateHourlySnapshot, createdAt: new Date(), updatedAt: new Date(), } as any)
       .returning()
     return row;
   }
@@ -153,10 +193,47 @@ export class DatabaseStorage {
     return row || undefined;
   }
 
-  async closeSession(userId: string, sessionId: string, pricingTier?: "solo" | "group"): Promise<Session | undefined> {
+  async closeSession(userId: string, sessionId: string): Promise<Session | undefined> {
+    const [current] = await db
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
+      .limit(1);
+    
+    if(!current) return undefined;
+    
+    if(current.status === "closed") return current;
+
+    const closedAt = new Date();
+    
+    // If currently paused, add the paused time since pausedAt to totalPausedSeconds
+    let totalPausedSeconds = current.totalPausedSeconds ?? 0;
+    if (current.status === "paused" && current.pausedAt) {
+      const extra = Math.max(
+        0,
+        Math.floor((closedAt.getTime() - current.pausedAt.getTime()) / 1000)
+      );
+      totalPausedSeconds += extra;
+    }
+
+    const startedAtMs = current.startedAt.getTime();
+    const closedAtMs = closedAt.getTime();
+
+    const grossSeconds = Math.max(0, Math.floor((closedAtMs - startedAtMs) / 1000));
+    const effectiveSeconds = Math.max(0, grossSeconds - totalPausedSeconds);
+
+    const hours = effectiveSeconds / 3600;
+
+    // numeric typically comes back as string
+    const rate = Number(current.rateHourlySnapshot ?? 0);
+    const timeTotal = Number.isFinite(rate) ? hours * rate : 0;
+
+    // store with 2 decimals (string works well with numeric(10,2))
+    const totalAmount = timeTotal.toFixed(2);
+
     const [row] = await db
       .update(sessions)
-      .set({ status: "closed", pricingTier: pricingTier ?? null, closedAt: new Date(), updatedAt: new Date() })
+      .set({ status: "closed", closedAt, pausedAt: null, totalPausedSeconds, totalAmount, updatedAt: new Date() } as any)
       .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
       .returning();
     return row || undefined;

@@ -1,11 +1,13 @@
 import { auth } from "./firebaseClient";
 
+const BASE = import.meta.env.VITE_API_BASE_URL || "";
+
 export async function fetchWithAuth<T>(url: string, init: RequestInit = {}): Promise<T> {
     const user = auth.currentUser;
     if(!user) throw new Error("Not authenticated");
     const token = await user.getIdToken();
 
-    const res = await fetch(url, {
+    const res = await fetch(`${BASE}${url}`, {
         ...init,
         headers: {
             ...(init.headers ?? {}),

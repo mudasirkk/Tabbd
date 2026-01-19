@@ -59,7 +59,6 @@ export class DatabaseStorage {
         name: data.name,
         description: data.description ?? null,
         price: data.price,
-        category: data.category,
         stockQty: data.stockQty ?? 0,
         isActive: data.isActive ?? true,
         createdAt: new Date(),

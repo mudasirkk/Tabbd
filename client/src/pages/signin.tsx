@@ -20,6 +20,12 @@ export default function SignIn() {
     if(user) window.location.replace("/dashboard");
   }, [authReady, user]);
 
+  useEffect(() => {
+    setEmail("");
+    setPassword("");
+    setError(null);
+  }, [mode]);
+
   async function submit() {
     setError(null);
     setBusy(true);
@@ -46,16 +52,22 @@ export default function SignIn() {
             {mode === "login" ? "Log in to your account" : "Create a new account"}
           </p>
         </div>
+        <form onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+          className="space-y-4"
+          >
+          <div className="space-y-2">
+            <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          </div>
 
-        <div className="space-y-2">
-          <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        </div>
-
-        <Button className="w-full" onClick={submit} disabled={busy || !email || password.length < 6}>
-          {busy ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
-        </Button>
+          <Button type="submit" className="w-full" disabled={busy || !email || password.length < 6}>
+            {busy ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
+          </Button>
+        </form>
 
         <div className="text-sm text-muted-foreground">
           {mode === "login" ? (

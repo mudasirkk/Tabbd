@@ -60,7 +60,9 @@ export const sessions = pgTable("sessions", {
   pausedAt: timestamp("paused_at"),
   totalPausedSeconds: integer("total_paused_seconds").notNull().default(0),
   closedAt: timestamp("closed_at"),
-  pricingTier: pricingTierEnum("pricing_tier"),
+  pricingTier: pricingTierEnum("pricing_tier").notNull(),
+  rateHourlySnapshot: numeric("rate_hourly_snapshot", { precision: 10, scale: 2 }).notNull(),
+  totalAmount: numeric("total_amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -110,6 +112,7 @@ export const updateStationSchema = insertStationSchema.partial();
 
 export const startSessionSchema = z.object({
   stationId: z.string().min(1),
+  pricingTier: z.enum(["solo", "group"]),
   startedAt: z.string().datetime().optional(),
 });
 

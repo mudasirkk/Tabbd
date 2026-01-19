@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthReady } from "@/lib/useAuthReady";
 import { fetchWithAuth, postWithAuth, patchWithAuth, deleteWithAuth } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,13 +24,21 @@ function toNumber(v: string | number): number {
 }
 
 export default function MenuManagementPage() {
+  const { ready: authReady, user } = useAuthReady();
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!user) window.location.replace("/signin");
+  }, [authReady, user]);
+  
 
   const { data: items, isLoading, error } = useQuery<MenuItem[]>({
     queryKey: ["menu"],
     queryFn: () => fetchWithAuth<MenuItem[]>("/api/menu"),
     retry: false,
+    enabled: authReady && !!user,
   });
 
   const [open, setOpen] = useState(false);
@@ -40,11 +49,6 @@ export default function MenuManagementPage() {
   const [price, setPrice] = useState<string>("0");
   const [stockQty, setStockQty] = useState<string>("0");
   const [isActive, setIsActive] = useState(true);
-
-  if (error) {
-    window.location.replace("/signin");
-    return null;
-  }
 
   //Sort by UpdatedAt time
   const sorted = useMemo(() => {
@@ -148,10 +152,37 @@ export default function MenuManagementPage() {
     }
   }
 
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading…</p>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Loading…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="p-6 max-w-lg w-full space-y-3">
+          <h2 className="text-lg font-semibold">Couldn’t load menu</h2>
+          <p className="text-sm text-muted-foreground">
+            Please refresh. If this keeps happening, sign out and sign back in.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh
+            </Button>
+            <Button onClick={() => window.location.replace("/signin")}>Go to Sign in</Button>
+          </div>
+        </Card>
       </div>
     );
   }

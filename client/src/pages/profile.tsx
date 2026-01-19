@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthReady } from "@/lib/useAuthReady";
 import { fetchWithAuth, patchWithAuth } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,13 +14,20 @@ interface MeResponse {
   }
 
   export default function ProfilePage() {
+    const { ready: authReady, user } = useAuthReady();
     const { toast } = useToast();
     const qc = useQueryClient();
   
+    useEffect(() => {
+      if (!authReady) return;
+      if (!user) window.location.replace("/signin");
+    }, [authReady, user]);
+
     const { data: me, isLoading, error } = useQuery<MeResponse>({
       queryKey: ["me"],
       queryFn: () => fetchWithAuth<MeResponse>("/api/me"),
       retry: false,
+      enabled: authReady && !!user,
     });
   
     const [storeName, setStoreName] = useState("");
@@ -27,10 +35,6 @@ interface MeResponse {
     useEffect(() => {
       if (me) setStoreName(me.storeName ?? "");
     }, [me]);
-  
-    useEffect(() => {
-      if (error) window.location.replace("/signin");
-    }, [error]);
   
     async function save() {
       const trimmed = storeName.trim();
@@ -52,10 +56,37 @@ interface MeResponse {
       }
     }
   
+    if (!authReady) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <p>Loading…</p>
+        </div>
+      );
+    }
+
     if (isLoading) {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <p>Loading…</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <Card className="p-6 max-w-lg w-full space-y-3">
+            <h2 className="text-lg font-semibold">Couldn’t load profile</h2>
+            <p className="text-sm text-muted-foreground">
+              Please refresh. If this keeps happening, sign out and sign back in.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh
+              </Button>
+              <Button onClick={() => window.location.replace("/signin")}>Go to Sign in</Button>
+            </div>
+          </Card>
         </div>
       );
     }

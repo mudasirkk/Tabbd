@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
 import { Clock, LogOut, Settings, User as UserIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
@@ -105,34 +106,38 @@ function computeElapsedSeconds(session: ApiSession, nowMs: number): number {
 /* ============================= COMPONENT ============================= */
 
 export default function Dashboard() {
-    const { ready: authReady, user } = useAuthReady();
-    const { toast } = useToast();
-    const qc = useQueryClient();
-  
-    const[now, setNow] = useState(Date.now());
-  
-    //right side panel selection
-    const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const { ready: authReady, user } = useAuthReady();
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
-    //dialogs
-    const [startSessionOpen, setStartSessionOpen] = useState(false);
-    const [stationToStart, setStationToStart] = useState<ApiStation | null>(null);
+  const[now, setNow] = useState(Date.now());
 
-    const [addItemsOpen, setAddItemsOpen] = useState(false);
-    const [checkoutOpen, setCheckoutOpen] = useState(false);
-    const [transferOpen, setTransferOpen] = useState(false);
+  //Station Creation
+  const [newStationName, setNewStationName] = useState("");
+  const [creatingStation, setCreatingStation] = useState(false);
 
-    //add-items local selection before confirm
-    const [tempItems, setTempItems] = useState<Record<string, number>>({});
+  //right side panel selection
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
 
-    // payment overlay (still optional UI)
-    const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
-    const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
+  //dialogs
+  const [startSessionOpen, setStartSessionOpen] = useState(false);
+  const [stationToStart, setStationToStart] = useState<ApiStation | null>(null);
 
-    useEffect(() => {
-      const id = setInterval(() => setNow(Date.now()), 1000);
-      return () => clearInterval(id);
-    }, []);
+  const [addItemsOpen, setAddItemsOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+
+  //add-items local selection before confirm
+  const [tempItems, setTempItems] = useState<Record<string, number>>({});
+
+  // payment overlay (still optional UI)
+  const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
+  const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   /* ---------- DATA ---------- */
 
@@ -317,7 +322,34 @@ export default function Dashboard() {
       </div>
     );
   }
-
+  
+  async function createStation() {
+    const name = newStationName.trim();
+    if (!name) return;
+  
+    setCreatingStation(true);
+    try {
+      await postWithAuth("/api/stations", {
+        name,
+        stationType: "pool",
+        rateSoloHourly: "0",
+        rateGroupHourly: "0",
+        isEnabled: true,
+      });
+  
+      setNewStationName("");
+      toast({ title: "Station created" });
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to create station",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingStation(false);
+    }
+  }
   /* ============================= RENDER ============================= */
 
   return (
@@ -352,6 +384,20 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Stations grid*/}
           <div className="lg:col-span-2">
+
+            {/*Add Station Button*/}
+            <div className="flex gap-2 mb-4">
+            <Input
+              placeholder="New station name"
+              value={newStationName}
+              onChange={(e) => setNewStationName(e.target.value)}
+            />
+            <Button onClick={createStation} disabled={creatingStation || !newStationName.trim()}>
+              Add Station
+            </Button>
+          </div>
+
+
             <h2 className="text-xl font-semibold mb-4">All Stations</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {(stations ?? []).map((st) => {

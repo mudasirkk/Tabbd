@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1764894734567,
-      "tag": "0000_mushy_lethal_legion",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1765433210422,
-      "tag": "0001_many_firelord",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1765433458147,
-      "tag": "0002_ordinary_raider",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1765433572996,
-      "tag": "0003_stormy_shard",
+      "when": 1768819959516,
+      "tag": "0000_jittery_hemingway",
       "breakpoints": true
     }
   ]

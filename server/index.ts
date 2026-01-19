@@ -75,4 +75,5 @@ app.use((req, res, next) => {
       log(`[express] Server running on port ${port}`);
     }
   );
+  console.log("Server URL: http://localhost:5000");
 })();

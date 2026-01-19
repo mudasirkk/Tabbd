@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, } from "firebase/auth";
 import { auth } from "@/lib/firebaseClient";
+import { useAuthReady } from "@/lib/useAuthReady";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 
 export default function SignIn() {
 
+  const { ready: authReady, user } = useAuthReady();
   const[mode, setMode] = useState<"login" | "signup">("login");
   const[email, setEmail] = useState("");
   const[password, setPassword] = useState("");
@@ -14,11 +16,9 @@ export default function SignIn() {
   const[error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if(user) window.location.replace("/dashboard");
-    });
-    return () => unsub();
-  }, []);
+    if(!authReady) return;
+    if(user) window.location.replace("/dashboard");
+  }, [authReady, user]);
 
   async function submit() {
     setError(null);

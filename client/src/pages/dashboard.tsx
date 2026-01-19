@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuthReady } from "@/lib/useAuthReady";
 import { Clock, LogOut, Settings, User as UserIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -104,6 +105,7 @@ function computeElapsedSeconds(session: ApiSession, nowMs: number): number {
 /* ============================= COMPONENT ============================= */
 
 export default function Dashboard() {
+    const { ready: authReady, user } = useAuthReady();
     const { toast } = useToast();
     const qc = useQueryClient();
   
@@ -138,26 +140,28 @@ export default function Dashboard() {
     queryKey: ["me"],
     queryFn: () => fetchWithAuth<MeResponse>("/api/me"),
     retry: false,
+    enabled: authReady && !!user,
   });
 
   const { data: menu } = useQuery<MenuItem[]>({
     queryKey: ["menu"],
     queryFn: () => fetchWithAuth<MenuItem[]>("/api/menu"),
     retry: false,
+    enabled: authReady && !!user,
   });
 
   const { data: stations, isLoading: stationsLoading } = useQuery<ApiStation[]>({
     queryKey: ["stations"],
     queryFn: () => fetchWithAuth<ApiStation[]>("/api/stations"),
     retry: false,
+    enabled: authReady && !!user,
   });
 
   // If token expired / logged out
   useEffect(() => {
-    if (meError) {
-      window.location.replace("/signin");
-    }
-  }, [meError]);
+    if (!authReady) return;
+    if(!user) window.location.replace("/signin");
+  }, [authReady, user]);
 
   const selectedStation = useMemo(() => {
     if (!stations || !selectedStationId) return null;
@@ -296,6 +300,14 @@ export default function Dashboard() {
         variant: "destructive",
       });
     }
+  }
+
+  if(!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
   }
 
   if (meLoading || stationsLoading) {

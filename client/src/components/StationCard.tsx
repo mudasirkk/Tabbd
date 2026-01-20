@@ -1,4 +1,4 @@
-import { Clock, Play, Square, DollarSign } from "lucide-react";
+import { Clock, Play, Square, DollarSign, Pencil, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,8 @@ interface StationCardProps {
   name: string;
   type: StationType;
   isActive: boolean;
+  rateSoloHourly?: number | string;
+  rateGroupHourly?: number | string;
   isPaused?: boolean;
   timeElapsed?: number;
   currentCharge?: number;
@@ -19,6 +21,8 @@ interface StationCardProps {
   onStop: () => void;
   onResume?: () => void;
   onCompletePayment?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   onClick?: () => void;
 }
 
@@ -39,6 +43,8 @@ export function StationCard({
   name,
   type,
   isActive,
+  rateSoloHourly,
+  rateGroupHourly,
   isPaused = false,
   timeElapsed = 0,
   currentCharge = 0,
@@ -47,6 +53,8 @@ export function StationCard({
   onStop,
   onResume,
   onCompletePayment,
+  onEdit,
+  onDelete,
   onClick,
 }: StationCardProps) {
   const formatTime = (seconds: number) => {
@@ -58,6 +66,13 @@ export function StationCard({
 
   const formatCurrency = (amount: number) => {
     return `$${amount.toFixed(2)}`;
+  };
+
+  const formatRate = (val: number | string | undefined) => {
+    if(val === undefined || val === null) return "—";
+    const n = typeof val === "string" ? Number(val) : val;
+    if(!Number.isFinite(n)) return "—";
+    return formatCurrency(n);
   };
 
   const formatStartTime = (timestamp: number) => {
@@ -91,13 +106,47 @@ export function StationCard({
             >
               {type === "pool" ? "Pool Table" : type === "gaming" ? "Gaming" : "Foosball"}
             </Badge>
+            <div className="mt-2 text-xs text-muted-foreground space-y-1">
+              <div data-testid={`text-rate-solo-${id}`}>Solo/hr: {formatRate(rateSoloHourly)}</div>
+              <div data-testid={`text-rate-group-${id}`}>Group/hr: {formatRate(rateGroupHourly)}</div>
+            </div>
           </div>
-          <Badge
-            variant={isActive ? (isPaused ? "outline" : "default") : "secondary"}
-            data-testid={`badge-status-${id}`}
-          >
-            {isActive ? (isPaused ? "Paused" : "Active") : "Available"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={isActive ? (isPaused ? "outline" : "default") : "secondary"}
+              data-testid={`badge-status-${id}`}
+            >
+              {isActive ? (isPaused ? "Paused" : "Active") : "Available"}
+            </Badge>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit?.();
+              }}
+              disabled={!onEdit}
+              aria-label="Edit station"
+              data-testid={`button-edit-${id}`}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete?.();
+              }}
+              disabled={!onDelete}
+              aria-label="Delete station"
+              data-testid={`button-delete-${id}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {isActive ? (

@@ -25,12 +25,14 @@ export function StartSessionDialog({
   open,
   onOpenChange,
   stationName,
+  rateSoloHourly,
+  rateGroupHourly,
   onConfirmStart,
 }: StartSessionDialogProps) {
   const now = new Date();
   const defaultTime = now.toTimeString().slice(0, 5); // HH:MM format
   const [customTime, setCustomTime] = useState(defaultTime);
-  const [pricingTier, setPricingTier] = useState<"solo" | "group"> ("solo");
+  const [pricingTier, setPricingTier] = useState<"solo" | "group">("solo");
 
   const formatRate = (val: number | string | undefined) => {
     if (val === undefined || val === null) return "—";

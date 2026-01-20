@@ -145,7 +145,7 @@ export default function Dashboard() {
 
   /* ---------- DATA ---------- */
 
-  const{ data: me, isLoading: meLoading, error:meError } = useQuery<MeResponse>({
+  const{ data: me, isLoading: meLoading, } = useQuery<MeResponse>({
     queryKey: ["me"],
     queryFn: () => fetchWithAuth<MeResponse>("/api/me"),
     retry: false,
@@ -476,7 +476,8 @@ export default function Dashboard() {
                     rateSoloHourly={st.rateSoloHourly}
                     rateGroupHourly={st.rateGroupHourly}
                     startTime={session ? new Date(session.startedAt).getTime() : undefined}
-                    timeElapsed={isActive ? getTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
+                    timeElapsed={isActive ? getTimeElapsedForStation(st) : 0}
+                    currentCharge={isActive ? getTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
                     onEdit={() => openEditStation(st)}
                     onDelete={() => handleDeleteStation(st)}
                     onStart={() => {

@@ -1,6 +1,8 @@
 import { Route, Switch } from "wouter";
 import Dashboard from "@/pages/dashboard";
 import SignIn from "@/pages/signin";
+import MenuManagementPage from "./pages/menu";
+import ProfilePage from "./pages/profile";
 
 export default function App() {
   return (
@@ -10,6 +12,8 @@ export default function App() {
 
       {/* Protected route */}
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/menu" component={MenuManagementPage} />
+      <Route path="/profile" component={ProfilePage} />
 
       {/* Default: send unknown paths to signin */}
       <Route>

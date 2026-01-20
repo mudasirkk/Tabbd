@@ -25,7 +25,7 @@ import {
 
 /* ============================= TYPES ============================= */
 
-type PricingTier = "group" | "solo"
+type PricingTier = "group" | "solo";
 
 interface MeResponse {
   uid: string;
@@ -51,7 +51,7 @@ interface ApiSession {
   startedAt: string;
   pausedAt: string | null;
   totalPausedSeconds: number;
-  pricingTier: PricingTier | null;
+  pricingTier: PricingTier;
   closedAt: string | null;
   items?: ApiSessionItem[];
 }
@@ -233,10 +233,11 @@ export default function Dashboard() {
     }
   }
 
-  async function handleStartSession(st: ApiStation, customStartTime?: number | null) {
+  async function handleStartSession(st: ApiStation, pricingTier: PricingTier, customStartTime?: number | null) {
     try {
       await postWithAuth("/api/sessions/start", {
         stationId: st.id,
+        pricingTier,
         startedAt: customStartTime ? new Date(customStartTime).toISOString() : undefined,
       });
 
@@ -288,7 +289,7 @@ export default function Dashboard() {
     if (!st.activeSession) return;
 
     try {
-      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, { pricingTier });
+      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, {});
 
       setCheckoutOpen(false);
       setPaymentData({
@@ -413,8 +414,10 @@ export default function Dashboard() {
                     type={st.stationType}
                     isActive={isActive}
                     isPaused={isPaused}
+                    rateSoloHourly={st.rateSoloHourly}
+                    rateGroupHourly={st.rateGroupHourly}
                     startTime={session ? new Date(session.startedAt).getTime() : undefined}
-                    timeElapsed={isActive ? getTimeChargeForStation(st, "group") : 0}
+                    timeElapsed={isActive ? getTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
                     onStart={() => {
                       setStationToStart(st);
                       setStartSessionOpen(true);
@@ -482,9 +485,11 @@ export default function Dashboard() {
         open={startSessionOpen}
         onOpenChange={setStartSessionOpen}
         stationName={stationToStart?.name ?? ""}
-        onConfirmStart={(customStartTime) => {
+        rateSoloHourly={stationToStart?.rateSoloHourly}
+        rateGroupHourly={stationToStart?.rateGroupHourly}
+        onConfirmStart={(customStartTime, pricingTier) => {
           if(!stationToStart) return;
-          handleStartSession(stationToStart, customStartTime ?? null);
+          handleStartSession(stationToStart, pricingTier, customStartTime ?? null);
         }}
       />
 

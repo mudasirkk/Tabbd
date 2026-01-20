@@ -12,7 +12,7 @@ import { TransferSessionDialog } from "@/components/TransferSessionDialog";
 import { PaymentProcessingOverlay } from "@/components/PaymentProcessingOverlay";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { fetchWithAuth, postWithAuth } from "@/lib/api";
+import { fetchWithAuth, postWithAuth, patchWithAuth, deleteWithAuth } from "@/lib/api";
 import { auth } from "@/lib/firebaseClient";
 import { signOut } from "firebase/auth";
 import {
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EditStationDialog } from "@/components/EditStationDialog";
 
 /* ============================= TYPES ============================= */
 
@@ -133,6 +134,9 @@ export default function Dashboard() {
   // payment overlay (still optional UI)
   const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
   const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
+
+  const [editStationOpen, setEditStationOpen] = useState(false);
+  const [stationToEdit, setStationToEdit] = useState<ApiStation | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -351,6 +355,61 @@ export default function Dashboard() {
       setCreatingStation(false);
     }
   }
+
+  function openEditStation(st: ApiStation) {
+    setStationToEdit(st);
+    setEditStationOpen(true);
+  }
+
+  async function handleSaveStation(patch: {
+    id: string;
+    name: string;
+    stationType: StationType;
+    rateSoloHourly: string;
+    rateGroupHourly: string;
+    isEnabled: boolean;
+  }) {
+    try{
+      await patchWithAuth(`/api/stations/${patch.id}`, {
+        name: patch.name,
+        stationType: patch.stationType,
+        rateSoloHourly: patch.rateSoloHourly,
+        rateGroupHourly: patch.rateGroupHourly,
+        isEnabled: patch.isEnabled,
+      });
+
+      toast({ title: "Station updated" });
+      setEditStationOpen(false);
+      setStationToEdit(null);
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to update station",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+      throw e;
+    }
+  }
+
+  async function handleDeleteStation(st: ApiStation) {
+    if(!confirm(`Delete station "${st.name}"?`)) return;
+    try {
+      await deleteWithAuth(`/api/stations/${st.id}`);
+      toast({ title: "Station deleted" });
+
+      if(selectedStationId === st.id) setSelectedStationId(null);
+
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to delete station",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
   /* ============================= RENDER ============================= */
 
   return (
@@ -418,6 +477,8 @@ export default function Dashboard() {
                     rateGroupHourly={st.rateGroupHourly}
                     startTime={session ? new Date(session.startedAt).getTime() : undefined}
                     timeElapsed={isActive ? getTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
+                    onEdit={() => openEditStation(st)}
+                    onDelete={() => handleDeleteStation(st)}
                     onStart={() => {
                       setStationToStart(st);
                       setStartSessionOpen(true);
@@ -479,6 +540,14 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+      
+      {/* Edit Session */}
+      <EditStationDialog
+        open={editStationOpen}
+        onOpenChange={setEditStationOpen}
+        station={stationToEdit}
+        onSave={handleSaveStation}
+      />
 
       {/* Start Session */}
       <StartSessionDialog

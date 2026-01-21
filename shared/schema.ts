@@ -95,6 +95,7 @@ export const upsertProfileSchema = z.object({
 
 export const insertMenuItemSchema = createInsertSchema(menuItems).omit({
   id: true,
+  userId: true,
   createdAt: true,
   updatedAt: true,
 });

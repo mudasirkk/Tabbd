@@ -9,6 +9,8 @@ import {
   updateMenuItemSchema,
   updateStationSchema,
   upsertProfileSchema,
+  transferSessionSchema,
+  removeSessionItemSchema,
 } from "@shared/schema";
 import { requireAuth, getUserId } from "./middleware/auth";
 import { storage } from "./storage";
@@ -197,6 +199,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  //Transfer
+  app.post("/api/sessions/:id/transfer", requireAuth, async (req, res) => {
+    try {
+      const uid = getUserId(req);
+      const { destinationStationId } = transferSessionSchema.parse(req.body);
+
+      const updated = await storage.transferSession(uid, req.params.id, destinationStationId);
+      res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
+      if (err?.message) return res.status(400).json({ error: err.message });
+      console.error("[SESSIONS] transfer error:", err);
+      res.status(500).json({ error: "Failed to transfer session" });
+    }
+  });
+
   //Items
   app.post("/api/sessions/:id/items", requireAuth, async (req, res) => {
     try {
@@ -209,6 +227,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ error: err?.message ?? "Failed to add item" });
     }
   });
+  
+  // Remove qty of a menu item from an active session (restocks stock)
+app.post("/api/sessions/:id/items/remove", requireAuth, async (req, res) => {
+  try {
+    const uid = getUserId(req);
+    const { menuItemId, qty } = removeSessionItemSchema.parse(req.body);
+
+    const result = await storage.removeQtyFromSession(uid, req.params.id, menuItemId, qty);
+    res.json(result);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
+    res.status(400).json({ error: err?.message ?? "Failed to remove item" });
+  }
+});
 
   return createServer(app);
 }

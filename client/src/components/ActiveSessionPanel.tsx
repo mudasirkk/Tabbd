@@ -1,4 +1,4 @@
-import { Clock, ShoppingBag, Receipt, ArrowRightLeft } from "lucide-react";
+import { Clock, ShoppingBag, Receipt, ArrowRightLeft, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ interface ActiveSessionPanelProps {
   onAddItems: () => void;
   onCheckout: () => void;
   onTransfer: () => void;
+  onRequestRemoveItem: (item: SessionItem) => void;
 }
 
 export function ActiveSessionPanel({
@@ -32,6 +33,7 @@ export function ActiveSessionPanel({
   onAddItems,
   onCheckout,
   onTransfer,
+  onRequestRemoveItem,
 }: ActiveSessionPanelProps) {
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -114,13 +116,26 @@ export function ActiveSessionPanel({
                       className="flex items-center justify-between p-2 rounded-md hover-elevate"
                       data-testid={`item-session-${item.id}-${index}`}
                     >
-                      <span className="text-sm">
-                        {item.quantity}x {item.name}
-                      </span>
-                      <span className="text-sm font-mono" data-testid={`text-session-item-total-${item.id}-${index}`}>
-                        ${(item.price * item.quantity).toFixed(2)}
-                      </span>
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">
+                          {item.quantity}x {item.name}
+                        </span>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRequestRemoveItem(item)}
+                          aria-label={`Remove ${item.name}`}
+                          data-testid={`button-remove-session-item-${item.id}-${index}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                    <span className="text-sm font-mono" data-testid={`text-session-item-total-${item.id}-${index}`}>
+                      ${(item.price * item.quantity).toFixed(2)}
+                    </span>
+                  </div>
                   ))}
                 </div>
               </ScrollArea>

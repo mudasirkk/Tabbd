@@ -23,6 +23,7 @@ export const menuItems = pgTable("menu_items", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
+  category: text("category").notNull().default("Miscellaneous"),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   stockQty: integer("stock_qty").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
@@ -73,7 +74,7 @@ export const sessions = pgTable("sessions", {
 export const sessionItems = pgTable("session_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sessionId: varchar("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
-  menuItemId: varchar("menu_item_id").notNull().references(() => menuItems.id, { onDelete: "restrict" }),
+  menuItemId: varchar("menu_item_id").references(() => menuItems.id, { onDelete: "set null" }),
   nameSnapshot: text("name_snapshot").notNull(),
   priceSnapshot: numeric("price_snapshot", { precision: 10, scale: 2 }).notNull(),
   qty: integer("qty").notNull(),
@@ -120,6 +121,15 @@ export const startSessionSchema = z.object({
 export const addSessionItemSchema = z.object({
   menuItemId: z.string().min(1),
   qty: z.number().int().positive(),
+});
+
+export const removeSessionItemSchema = z.object({
+  menuItemId: z.string().min(1),
+  qty: z.number().int().positive(),
+});
+
+export const transferSessionSchema = z.object({
+  destinationStationId: z.string().min(1),
 });
 
 /**

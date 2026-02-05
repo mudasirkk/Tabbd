@@ -23,6 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EditStationDialog } from "@/components/EditStationDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 /* ============================= TYPES ============================= */
 
@@ -138,6 +147,11 @@ export default function Dashboard() {
   const [editStationOpen, setEditStationOpen] = useState(false);
   const [stationToEdit, setStationToEdit] = useState<ApiStation | null>(null);
 
+  const [removeItemOpen, setRemoveItemOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<SessionItem | null>(null);
+  const [removeQty, setRemoveQty] = useState<number>(1);
+
+
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
@@ -237,6 +251,47 @@ export default function Dashboard() {
     }
   }
 
+  function openRemoveItemDialog(item: SessionItem) {
+    setRemoveTarget(item);
+    setRemoveQty(1);
+    setRemoveItemOpen(true);
+  }
+  
+  async function submitRemoveQty(qty: number) {
+    const st = selectedStation;
+    const session = st?.activeSession;
+    if (!st || !session || !removeTarget) return;
+  
+    const clamped = Math.max(1, Math.min(qty, removeTarget.quantity));
+  
+    try {
+      const res = await postWithAuth<{ removedQty: number; menuItemId: string }>(
+        `/api/sessions/${session.id}/items/remove`,
+        { menuItemId: removeTarget.id, qty: clamped }
+      );
+  
+      toast({
+        title: "Item removed",
+        description:
+          res.removedQty >= removeTarget.quantity
+            ? `Removed all ${removeTarget.name}.`
+            : `Removed ${res.removedQty} of ${removeTarget.name}.`,
+      });
+  
+      setRemoveItemOpen(false);
+      setRemoveTarget(null);
+  
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+      await qc.invalidateQueries({ queryKey: ["menu"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to remove item",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }  
+
   async function handleStartSession(st: ApiStation, pricingTier: PricingTier, customStartTime?: number | null) {
     try {
       await postWithAuth("/api/sessions/start", {
@@ -288,6 +343,37 @@ export default function Dashboard() {
       });
     }
   }
+
+  async function handleConfirmTransfer(destinationStationId: string) {
+    const st = selectedStation;
+    const session = st?.activeSession;
+  
+    if (!st || !session) return;
+    const destination = stations?.find((s) => s.id === destinationStationId);
+  
+    try {
+      await postWithAuth(`/api/sessions/${session.id}/transfer`, {
+        destinationStationId,
+      });
+  
+      toast({
+        title: "Session transferred",
+        description: `Moved Session from ${st.name} to ${destination?.name ?? "selected station"}.`,
+      });
+  
+      setTransferOpen(false);
+      setSelectedStationId(destinationStationId);
+  
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to transfer",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+  
 
   async function handleCheckoutConfirm(st: ApiStation, pricingTier: PricingTier, grandTotal: number) {
     if (!st.activeSession) return;
@@ -528,6 +614,7 @@ export default function Dashboard() {
                   onAddItems={() => setAddItemsOpen(true)}
                   onCheckout={() => setCheckoutOpen(true)}
                   onTransfer={() => setTransferOpen(true)}
+                  onRequestRemoveItem={openRemoveItemDialog}
                 />
               </div>
             ) : (
@@ -605,15 +692,68 @@ export default function Dashboard() {
         open={transferOpen}
         onOpenChange={setTransferOpen}
         currentStationName={selectedStation.name}
-        availableStations={(stations ?? []).filter((s) => !s.activeSession || s.activeSession.status === "closed").map((s) => ({id: s.id, name: s.name, stationType: s.stationType }))}
-        onConfirmTransfer={() => {
-          //NOTE: transfer API not wired
-          setTransferOpen(false);
-          toast({ title: "Transfer", description: "Transfer wiring can be enabled next." });
-        }}
+        availableStations={(stations ?? []).filter((s) => 
+          s.id !== selectedStationId && 
+          (!s.activeSession || s.activeSession.status === "closed")
+        )
+        .map((s) => ({id: s.id, name: s.name, stationType: s.stationType }))}
+        onConfirmTransfer={handleConfirmTransfer}
         />
+
+<Dialog open={removeItemOpen} onOpenChange={setRemoveItemOpen}>
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle>Remove Item</DialogTitle>
+      <DialogDescription>
+        {removeTarget ? (
+          <>
+            How many <span className="font-semibold text-foreground">{removeTarget.name}</span> do you want to remove?
+            <div className="mt-1 text-xs text-muted-foreground">
+              On tab: {removeTarget.quantity}
+            </div>
+          </>
+        ) : (
+          "Select an item to remove."
+        )}
+      </DialogDescription>
+    </DialogHeader>
+
+    {removeTarget && (
+      <div className="space-y-2 py-2">
+        <Label htmlFor="remove-qty">Quantity</Label>
+        <Input
+          id="remove-qty"
+          type="number"
+          min={1}
+          max={removeTarget.quantity}
+          value={removeQty}
+          onChange={(e) => setRemoveQty(Number(e.target.value))}
+        />
+      </div>
+    )}
+
+    <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            disabled={!removeTarget}
+            onClick={() => removeTarget && submitRemoveQty(removeTarget.quantity)}
+          >
+            Remove All
+          </Button>
+
+          <Button
+            disabled={!removeTarget}
+            onClick={() => submitRemoveQty(removeQty)}
+          >
+            Remove
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
         </>
       ) : null}
+
+      
 
       <PaymentProcessingOverlay
         show={showPaymentProcessing}

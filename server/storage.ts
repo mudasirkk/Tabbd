@@ -12,7 +12,7 @@ import {
   type User,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ne } from "drizzle-orm";
 
 export class DatabaseStorage {
   // ---- Users ----
@@ -58,6 +58,7 @@ export class DatabaseStorage {
         userId,
         name: data.name,
         description: data.description ?? null,
+        category: data.category ?? 'Miscellaneous',
         price: data.price,
         stockQty: data.stockQty ?? 0,
         isActive: data.isActive ?? true,
@@ -239,6 +240,61 @@ export class DatabaseStorage {
     return row || undefined;
   }
 
+  async transferSession(userId: string, sessionId: string, destinationStationId: string): Promise<Session> {
+    return await db.transaction(async (tx) => {
+      const [sess] = await tx
+        .select()
+        .from(sessions)
+        .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
+        .limit(1);
+
+      if (!sess) throw new Error("Session not found");
+      if (sess.status === "closed") throw new Error("Session is closed");
+
+      if (sess.stationId === destinationStationId) {
+        // no-op, but keep it explicit
+        return sess;
+      }
+
+      // destination station must exist + belong to user
+      const [destStation] = await tx
+        .select({ id: stations.id })
+        .from(stations)
+        .where(and(eq(stations.userId, userId), eq(stations.id, destinationStationId)))
+        .limit(1);
+
+      if (!destStation) throw new Error("Destination station not found");
+
+      // destination station must NOT have an active (non-closed) session
+      const destActive = await tx
+        .select({ id: sessions.id })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.userId, userId),
+            eq(sessions.stationId, destinationStationId),
+            sql`${sessions.status} != 'closed'`
+          )
+        )
+        .limit(1);
+
+      if (destActive.length > 0) {
+        throw new Error("Destination station already has an active session");
+      }
+
+      const [updated] = await tx
+        .update(sessions)
+        .set({ stationId: destinationStationId, updatedAt: new Date() } as any)
+        .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId), ne(sessions.status, "closed")))
+        .returning();
+
+      if (!updated) throw new Error("Failed to transfer session");
+
+      return updated;
+    });
+  }
+
+
   async listSessionItems(userId: string, sessionId: string): Promise<SessionItem[]> {
     const [sess] = await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId))).limit(1);
     if (!sess) return [];
@@ -278,6 +334,76 @@ export class DatabaseStorage {
         .returning();
 
       return { sessionItem: createdSessionItem, menuItem: updatedMenuItem };
+    });
+  }
+
+  // Remove a menu item from an active session (restocks qty)
+  async removeQtyFromSession(
+    userId: string,
+    sessionId: string,
+    menuItemId: string,
+    qty: number
+  ): Promise<{ removedQty: number; menuItemId: string }> {
+    return await db.transaction(async (tx) => {
+      const [sess] = await tx
+        .select()
+        .from(sessions)
+        .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId)))
+        .limit(1);
+
+      if (!sess) throw new Error("Session not found");
+      if (sess.status === "closed") throw new Error("Session is closed");
+
+      // Get session item rows for this menu item, newest first (so removals feel predictable)
+      const rows = await tx
+        .select()
+        .from(sessionItems)
+        .where(and(eq(sessionItems.sessionId, sessionId), eq(sessionItems.menuItemId, menuItemId)))
+        .orderBy(desc(sessionItems.createdAt));
+
+      const totalHave = rows.reduce((sum, r) => sum + (r.qty ?? 0), 0);
+      if (totalHave <= 0) return { removedQty: 0, menuItemId };
+
+      let remaining = Math.min(qty, totalHave);
+      let removed = 0;
+
+      for (const row of rows) {
+        if (remaining <= 0) break;
+
+        const rowQty = row.qty ?? 0;
+        if (rowQty <= 0) continue;
+
+        if (remaining >= rowQty) {
+          // delete entire row
+          await tx.delete(sessionItems).where(eq(sessionItems.id, row.id));
+          remaining -= rowQty;
+          removed += rowQty;
+        } else {
+          // decrement this row
+          await tx
+            .update(sessionItems)
+            .set({ qty: rowQty - remaining } as any)
+            .where(eq(sessionItems.id, row.id));
+          removed += remaining;
+          remaining = 0;
+        }
+      }
+
+      // Restock if menu item still exists
+      const [item] = await tx
+        .select()
+        .from(menuItems)
+        .where(and(eq(menuItems.userId, userId), eq(menuItems.id, menuItemId)))
+        .limit(1);
+
+      if (item && removed > 0) {
+        await tx
+          .update(menuItems)
+          .set({ stockQty: (item.stockQty ?? 0) + removed, updatedAt: new Date() })
+          .where(and(eq(menuItems.userId, userId), eq(menuItems.id, menuItemId)));
+      }
+
+      return { removedQty: removed, menuItemId };
     });
   }
 }

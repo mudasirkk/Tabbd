@@ -15,6 +15,20 @@
       "when": 1768840270663,
       "tag": "0001_steep_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770310176523,
+      "tag": "0002_tidy_deadpool",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770321206019,
+      "tag": "0003_dusty_bulldozer",
+      "breakpoints": true
     }
   ]
 }

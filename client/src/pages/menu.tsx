@@ -13,6 +13,7 @@ type MenuItem = {
   id: string;
   name: string;
   description: string | null;
+  category: string;
   price: string | number;
   stockQty: number;
   isActive: boolean;
@@ -46,22 +47,40 @@ export default function MenuManagementPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Miscellaneous");
   const [price, setPrice] = useState<string>("0");
   const [stockQty, setStockQty] = useState<string>("0");
   const [isActive, setIsActive] = useState(true);
 
-  //Sort by UpdatedAt time
-  const sorted = useMemo(() => {
-    return [...(items ?? [])].sort((a, b) => {
-      const aa = new Date(a.updatedAt).getTime();
-      const bb = new Date(b.updatedAt).getTime();
-      return bb - aa;
+  // Group by category (category-only sorting)
+  const grouped = useMemo(() => {
+    const list = items ?? [];
+    const groups = new Map<string, MenuItem[]>();
+
+    for (const it of list) {
+      const cat = (it.category ?? "").trim() || "Miscellaneous";
+      const arr = groups.get(cat) ?? [];
+      arr.push(it);
+      groups.set(cat, arr);
+    }
+
+    // Sort categories A→Z, but keep "Miscellaneous" first
+    const categories = Array.from(groups.keys()).sort((a, b) => {
+      if (a === "Miscellaneous") return -1;
+      if (b === "Miscellaneous") return 1;
+      return a.localeCompare(b);
     });
+
+    return categories.map((category) => ({
+      category,
+      items: groups.get(category) ?? [],
+    }));
   }, [items]);
 
   function resetForm() {
     setName("");
     setDescription("");
+    setCategory("Miscellaneous");
     setPrice("0");
     setStockQty("0");
     setIsActive(true);
@@ -78,6 +97,7 @@ export default function MenuManagementPage() {
     setEditing(item);
     setName(item.name);
     setDescription(item.description ?? "");
+    setCategory(item.category?.trim() ? item.category : "Miscellaneous");
     setPrice(String(toNumber(item.price).toFixed(2)));
     setStockQty(String(item.stockQty ?? 0));
     setIsActive(!!item.isActive);
@@ -107,6 +127,7 @@ export default function MenuManagementPage() {
         await postWithAuth("/api/menu", {
           name: trimmed,
           description: description.trim() ? description.trim() : null,
+          category: category.trim() ? category.trim() : "Miscellaneous",
           price: p.toFixed(2),
           stockQty: q,
           isActive,
@@ -116,6 +137,7 @@ export default function MenuManagementPage() {
         await patchWithAuth(`/api/menu/${editing.id}`, {
           name: trimmed,
           description: description.trim() ? description.trim() : null,
+          category: category.trim() ? category.trim() : "Miscellaneous",
           price: p.toFixed(2),
           stockQty: q,
           isActive,
@@ -205,43 +227,52 @@ export default function MenuManagementPage() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {sorted.length === 0 ? (
+        {grouped.length === 0 ? (
           <Card className="p-8 text-center text-muted-foreground">
             No menu items yet. Click “Add Item” to create your first one.
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {sorted.map((it) => (
-              <Card key={it.id} className="p-5 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold">{it.name}</h3>
-                    {it.description ? (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{it.description}</p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No description</p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono font-semibold">${toNumber(it.price).toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Stock: <span className="font-medium">{it.stockQty ?? 0}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Status: <span className="font-medium">{it.isActive ? "Active" : "Inactive"}</span>
-                    </div>
-                  </div>
-                </div>
+          <div className="space-y-8">
+            {grouped.map((group) => (
+              <div key={group.category} className="space-y-3">
+                <h2 className="text-lg font-semibold">{group.category}</h2>
 
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" className="flex-1" onClick={() => openEdit(it)}>
-                    Edit
-                  </Button>
-                  <Button variant="destructive" className="flex-1" onClick={() => remove(it)}>
-                    Delete
-                  </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {group.items.map((it) => (
+                    <Card key={it.id} className="p-5 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">{it.name}</h3>
+                          {it.description ? (
+                            <p className="text-sm text-muted-foreground line-clamp-2">{it.description}</p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No description</p>
+                          )}
+                        </div>
+
+                        <div className="text-right">
+                          <div className="font-mono font-semibold">${toNumber(it.price).toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Stock: <span className="font-medium">{it.stockQty ?? 0}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Status: <span className="font-medium">{it.isActive ? "Active" : "Inactive"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <Button variant="outline" className="flex-1" onClick={() => openEdit(it)}>
+                          Edit
+                        </Button>
+                        <Button variant="destructive" className="flex-1" onClick={() => remove(it)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         )}

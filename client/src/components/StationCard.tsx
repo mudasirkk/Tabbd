@@ -180,18 +180,6 @@ export function StationCard({
                   <Play className="w-4 h-4 mr-2" />
                   Resume
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCompletePayment?.();
-                  }}
-                  data-testid={`button-complete-payment-${id}`}
-                >
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Complete Payment
-                </Button>
               </div>
             ) : (
               <Button

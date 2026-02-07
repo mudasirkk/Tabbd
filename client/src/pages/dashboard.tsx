@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
-import { Clock, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { Clock, LogOut, Hamburger, User as UserIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -517,7 +517,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <Button variant="outline" onClick={() => window.location.assign("/menu")}>
-              <Settings className="w-4 h-4 mr-2" />
+              <Hamburger className="w-4 h-4 mr-2" />
               Menu
             </Button>
             <Button variant="outline" onClick={() => window.location.assign("/profile")}>

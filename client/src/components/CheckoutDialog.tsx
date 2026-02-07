@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Clock, ShoppingBag, DollarSign, Users, User, } from "lucide-react";
 import {
   Dialog,
@@ -10,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
 interface CheckoutItem {
@@ -29,8 +27,8 @@ interface CheckoutDialogProps {
   groupHourlyRate: number;
   soloHourlyRate: number;
   items: CheckoutItem[];
-  onConfirmCheckout: (checkoutData: { 
-    pricingTier: "group" | "solo"; 
+  pricingTier: "group" | "solo";
+  onConfirmCheckout: (checkoutData: {
     timeCharge: number; 
     grandTotal: number;
   }) => void;
@@ -45,17 +43,9 @@ export function CheckoutDialog({
   groupHourlyRate,
   soloHourlyRate,
   items,
+  pricingTier,
   onConfirmCheckout,
-}: CheckoutDialogProps) {
-  const [pricingTier, setPricingTier] = useState<"group" | "solo">("group");
-  
-  // Reset to pricing tier when dialog opens
-  useEffect(() => {
-    if (open) {
-      setPricingTier("group");
-    }
-  }, [open]);
-  
+}: CheckoutDialogProps) {  
   const isPoolOrFoosball = stationType === "pool" || stationType === "foosball";
   const hourlyRate = isPoolOrFoosball
     ? (pricingTier === "solo" ? soloHourlyRate : groupHourlyRate)
@@ -86,53 +76,18 @@ export function CheckoutDialog({
 
         <div className="space-y-6">
           <div className="space-y-4">
-            {isPoolOrFoosball && (
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Pricing Option</Label>
-                <RadioGroup
-                  value={pricingTier}
-                  onValueChange={(value) => setPricingTier(value as "group" | "solo")}
-                  className="grid grid-cols-2 gap-3"
+          {isPoolOrFoosball && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Pricing Tier</Label>
+                <div
+                  className="flex items-center justify-between rounded-lg border bg-muted/50 p-3"
+                  data-testid="text-checkout-pricing-tier"
                 >
-                  <div>
-                    <RadioGroupItem
-                      value="group"
-                      id="group"
-                      className="peer sr-only"
-                      data-testid="radio-pricing-group"
-                    />
-                    <Label
-                      htmlFor="group"
-                      className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-muted/50 p-4 hover-elevate cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
-                      data-testid="label-pricing-group"
-                    >
-                      <Users className="w-5 h-5" />
-                      <div className="text-center">
-                        <p className="font-semibold">Group</p>
-                        <p className="text-sm text-muted-foreground">$16.00/HR</p>
-                      </div>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem
-                      value="solo"
-                      id="solo"
-                      className="peer sr-only"
-                      data-testid="radio-pricing-solo"
-                    />
-                    <Label
-                      htmlFor="solo"
-                      className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-muted bg-muted/50 p-4 hover-elevate cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
-                      data-testid="label-pricing-solo"
-                    >
-                      <User className="w-5 h-5" />
-                      <div className="text-center">
-                        <p className="font-semibold">Solo</p>
-                        <p className="text-sm text-muted-foreground">$10.00/HR</p>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
+                  <span className="text-sm text-muted-foreground">Selected at start</span>
+                  <span className="font-semibold">
+                    {pricingTier === "solo" ? "Solo" : "Group"}
+                  </span>
+                </div>
               </div>
             )}
             
@@ -142,7 +97,7 @@ export function CheckoutDialog({
                 <div>
                   <p className="text-sm font-medium">Time Charge</p>
                   <p className="text-xs text-muted-foreground" data-testid="text-time-elapsed">
-                    {formatTime(timeElapsed)} @ ${hourlyRate}/hour
+                    {formatTime(timeElapsed)} @ ${hourlyRate.toFixed(2)}/hour
                   </p>
                 </div>
               </div>
@@ -201,8 +156,7 @@ export function CheckoutDialog({
           <Button
             className="w-full"
             size="lg"
-            onClick={() => onConfirmCheckout({ 
-              pricingTier, 
+            onClick={() => onConfirmCheckout({
               timeCharge: recalculatedTimeCharge,
               grandTotal
             })}

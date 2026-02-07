@@ -206,11 +206,18 @@ export default function Dashboard() {
 
   function getTimeChargeForStation(st: ApiStation, pricingTier: PricingTier = "group"): number {
     if (!st.activeSession) return 0;
+  
     const elapsed = computeElapsedSeconds(st.activeSession, now);
+  
+    const isPoolOrFoosball = st.stationType === "pool" || st.stationType === "foosball";
+    const effectiveTier: PricingTier = isPoolOrFoosball ? pricingTier : "group";
+  
     const rate =
-      pricingTier === "solo" ? toNumber(st.rateSoloHourly) : toNumber(st.rateGroupHourly);
+      effectiveTier === "solo" ? toNumber(st.rateSoloHourly) : toNumber(st.rateGroupHourly);
+  
     return (elapsed / 3600) * rate;
   }
+  
 
   async function handleLogout() {
     try {
@@ -602,7 +609,7 @@ export default function Dashboard() {
                 <ActiveSessionPanel
                   stationName={selectedStation.name}
                   timeElapsed={getTimeElapsedForStation(selectedStation)}
-                  timeCharge={getTimeChargeForStation(selectedStation)}
+                  timeCharge={getTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
                   startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
                   items={aggregateSessionItems(selectedStation.activeSession.items ?? [])}
                   onAddItems={() => setAddItemsOpen(true)}
@@ -681,12 +688,12 @@ export default function Dashboard() {
             stationName={selectedStation.name}
             stationType={selectedStation.stationType}
             timeElapsed={getTimeElapsedForStation(selectedStation)}
-            // will be recalculated inside dialog based on pricing tier + rates
             groupHourlyRate={toNumber(selectedStation.rateGroupHourly)}
             soloHourlyRate={toNumber(selectedStation.rateSoloHourly)}
+            pricingTier={selectedStation.activeSession.pricingTier}
             items={aggregateSessionItems(selectedStation.activeSession.items ?? [])}
-            onConfirmCheckout={({ pricingTier, grandTotal }) =>
-              handleCheckoutConfirm(selectedStation, pricingTier, grandTotal)
+            onConfirmCheckout={({ grandTotal }) =>
+              handleCheckoutConfirm(selectedStation, selectedStation.activeSession!.pricingTier,  grandTotal)
             }
           />
 

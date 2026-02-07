@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
+import { SetupStationDialog } from "@/components/SetupStationDialog";
 import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
 import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { StartSessionDialog } from "@/components/StartSessionDialog";
@@ -123,7 +124,7 @@ export default function Dashboard() {
   const[now, setNow] = useState(Date.now());
 
   //Station Creation
-  const [newStationName, setNewStationName] = useState("");
+  const [setupStationOpen, setSetupStationOpen] = useState(false);
   const [creatingStation, setCreatingStation] = useState(false);
 
   //right side panel selection
@@ -414,21 +415,17 @@ export default function Dashboard() {
     );
   }
   
-  async function createStation() {
-    const name = newStationName.trim();
-    if (!name) return;
-  
+  async function createStation(payload: {
+    name: string;
+    stationType: StationType;
+    rateSoloHourly: string;
+    rateGroupHourly: string;
+    isEnabled: boolean;
+  }) {
     setCreatingStation(true);
     try {
-      await postWithAuth("/api/stations", {
-        name,
-        stationType: "pool",
-        rateSoloHourly: "0",
-        rateGroupHourly: "0",
-        isEnabled: true,
-      });
-  
-      setNewStationName("");
+      await postWithAuth("/api/stations", payload);
+
       toast({ title: "Station created" });
       await qc.invalidateQueries({ queryKey: ["stations"] });
     } catch (e: any) {
@@ -437,10 +434,12 @@ export default function Dashboard() {
         description: e?.message ?? "Please try again",
         variant: "destructive",
       });
+      throw e;
     } finally {
       setCreatingStation(false);
     }
   }
+
 
   function openEditStation(st: ApiStation) {
     setStationToEdit(st);
@@ -533,15 +532,10 @@ export default function Dashboard() {
 
             {/*Add Station Button*/}
             <div className="flex gap-2 mb-4">
-            <Input
-              placeholder="New station name"
-              value={newStationName}
-              onChange={(e) => setNewStationName(e.target.value)}
-            />
-            <Button onClick={createStation} disabled={creatingStation || !newStationName.trim()}>
-              Add Station
-            </Button>
-          </div>
+              <Button onClick={() => setSetupStationOpen(true)} disabled={creatingStation}>
+                Add Station
+              </Button>
+            </div>
 
 
             <h2 className="text-xl font-semibold mb-4">All Stations</h2>
@@ -629,6 +623,14 @@ export default function Dashboard() {
         </div>
       </main>
       
+      {/* Setup Station (Create) */}
+      <SetupStationDialog
+        open={setupStationOpen}
+        onOpenChange={setSetupStationOpen}
+        onCreate={(payload) => createStation(payload)}
+      />
+
+
       {/* Edit Session */}
       <EditStationDialog
         open={editStationOpen}

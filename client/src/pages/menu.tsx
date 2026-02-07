@@ -64,10 +64,10 @@ export default function MenuManagementPage() {
       groups.set(cat, arr);
     }
 
-    // Sort categories A→Z, but keep "Miscellaneous" first
+    // Sort categories A→Z, but keep "Miscellaneous" last
     const categories = Array.from(groups.keys()).sort((a, b) => {
-      if (a === "Miscellaneous") return -1;
-      if (b === "Miscellaneous") return 1;
+      if (a === "Miscellaneous") return 1;
+      if (b === "Miscellaneous") return -1;
       return a.localeCompare(b);
     });
 
@@ -293,6 +293,16 @@ export default function MenuManagementPage() {
             <div className="space-y-1">
               <label className="text-sm font-medium">Description</label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional Description" />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Category</label>
+              <Input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g., Drinks"
+              />
+              <p className="text-xs text-muted-foreground">Default: Miscellaneous</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

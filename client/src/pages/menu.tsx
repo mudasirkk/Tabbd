@@ -73,7 +73,7 @@ export default function MenuManagementPage() {
 
     return categories.map((category) => ({
       category,
-      items: groups.get(category) ?? [],
+      items: (groups.get(category) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
     }));
   }, [items]);
 

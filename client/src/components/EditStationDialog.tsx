@@ -51,6 +51,8 @@ const [rateSoloHourly, setRateSoloHourly] = useState("0.00");
 const [rateGroupHourly, setRateGroupHourly] = useState("0.00");
 const [isEnabled, setIsEnabled] = useState(true);
 const [saving, setSaving] = useState(false);
+const isPoolOrFoosball = stationType === "pool" || stationType === "foosball";
+
 
 // hydrate form when dialog opens / station changes
 useEffect(() => {
@@ -62,6 +64,14 @@ useEffect(() => {
     setIsEnabled(!!station.isEnabled);
 }, [station]);
 
+useEffect(() => {
+    if (!isPoolOrFoosball) {
+      // For gaming/other: keep group equal to flat rate
+      setRateGroupHourly(rateSoloHourly);
+    }
+  }, [isPoolOrFoosball, rateSoloHourly]);
+  
+
 const canSave = useMemo(() => {
     const trimmed = name.trim();
     if (!trimmed) return false;
@@ -70,10 +80,13 @@ const canSave = useMemo(() => {
     const group = Number(rateGroupHourly);
 
     if (!Number.isFinite(solo) || solo < 0) return false;
+    if (isPoolOrFoosball) {
     if (!Number.isFinite(group) || group < 0) return false;
+    }
+
 
     return true;
-}, [name, rateSoloHourly, rateGroupHourly]);
+}, [name, rateSoloHourly, rateGroupHourly, isPoolOrFoosball]);
 
 async function handleSave() {
     if (!station) return;
@@ -93,7 +106,7 @@ async function handleSave() {
         name: trimmed,
         stationType,
         rateSoloHourly: solo.toFixed(2),
-        rateGroupHourly: group.toFixed(2),
+        rateGroupHourly: (isPoolOrFoosball ? group : solo).toFixed(2),
         isEnabled,
     });
     onOpenChange(false);
@@ -156,27 +169,43 @@ return (
             </div>
             </div>
 
+            {isPoolOrFoosball ? (
             <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                <label className="text-sm font-medium">Flat Rate / hr</label>
+                <Input
+                    value={rateSoloHourly}
+                    onChange={(e) => setRateSoloHourly(e.target.value)}
+                    placeholder="0.00"
+                    data-testid="input-rate-solo"
+                />
+                </div>
+
+                <div className="space-y-1">
+                <label className="text-sm font-medium">Group / hr</label>
+                <Input
+                    value={rateGroupHourly}
+                    onChange={(e) => setRateGroupHourly(e.target.value)}
+                    placeholder="0.00"
+                    data-testid="input-rate-group"
+                />
+                </div>
+            </div>
+            ) : (
             <div className="space-y-1">
-                <label className="text-sm font-medium">Solo / hr</label>
+                <label className="text-sm font-medium">Flat Rate / hr</label>
                 <Input
                 value={rateSoloHourly}
                 onChange={(e) => setRateSoloHourly(e.target.value)}
                 placeholder="0.00"
                 data-testid="input-rate-solo"
                 />
+                <p className="text-xs text-muted-foreground">
+                This station type uses a single rate.
+                </p>
             </div>
+            )}
 
-            <div className="space-y-1">
-                <label className="text-sm font-medium">Group / hr</label>
-                <Input
-                value={rateGroupHourly}
-                onChange={(e) => setRateGroupHourly(e.target.value)}
-                placeholder="0.00"
-                data-testid="input-rate-group"
-                />
-            </div>
-            </div>
 
             <div className="flex items-center justify-between border rounded-md p-3 gap-3">
             <div>

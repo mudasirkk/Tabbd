@@ -651,6 +651,7 @@ export default function Dashboard() {
         open={startSessionOpen}
         onOpenChange={setStartSessionOpen}
         stationName={stationToStart?.name ?? ""}
+        stationType={stationToStart?.stationType}
         rateSoloHourly={stationToStart?.rateSoloHourly}
         rateGroupHourly={stationToStart?.rateGroupHourly}
         onConfirmStart={(customStartTime, pricingTier) => {

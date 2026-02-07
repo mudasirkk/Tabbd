@@ -36,6 +36,7 @@ export function SetupStationDialog({
   const [rateGroupHourly, setRateGroupHourly] = useState("0.00");
   const [isEnabled, setIsEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isPoolOrFoosball = stationType === "pool" || stationType === "foosball";
 
   // Reset form whenever dialog opens (fresh setup each time)
   useEffect(() => {
@@ -48,6 +49,12 @@ export function SetupStationDialog({
     setSaving(false);
   }, [open]);
 
+  useEffect(() => {
+    if (!isPoolOrFoosball) {
+      setRateGroupHourly(rateSoloHourly);
+    }
+  }, [isPoolOrFoosball, rateSoloHourly]);
+
   const canCreate = useMemo(() => {
     const trimmed = name.trim();
     if (!trimmed) return false;
@@ -56,10 +63,14 @@ export function SetupStationDialog({
     const group = Number(rateGroupHourly);
 
     if (!Number.isFinite(solo) || solo < 0) return false;
-    if (!Number.isFinite(group) || group < 0) return false;
+
+    // Only validate group rate when station supports group pricing
+    if (isPoolOrFoosball) {
+      if (!Number.isFinite(group) || group < 0) return false;
+    }
 
     return true;
-  }, [name, rateSoloHourly, rateGroupHourly]);
+  }, [name, rateSoloHourly, rateGroupHourly, isPoolOrFoosball]);
 
   async function handleCreate() {
     const trimmed = name.trim();
@@ -68,7 +79,11 @@ export function SetupStationDialog({
 
     if (!trimmed) return;
     if (!Number.isFinite(solo) || solo < 0) return;
-    if (!Number.isFinite(group) || group < 0) return;
+
+    // Only enforce group validity when pool/foosball
+    if (isPoolOrFoosball) {
+      if (!Number.isFinite(group) || group < 0) return;
+    }
 
     try {
       setSaving(true);
@@ -76,7 +91,7 @@ export function SetupStationDialog({
         name: trimmed,
         stationType,
         rateSoloHourly: solo.toFixed(2),
-        rateGroupHourly: group.toFixed(2),
+        rateGroupHourly: (isPoolOrFoosball ? group : solo).toFixed(2),
         isEnabled,
       });
       onOpenChange(false);
@@ -133,25 +148,40 @@ export function SetupStationDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {isPoolOrFoosball ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Solo / hr</label>
+                <Input
+                  value={rateSoloHourly}
+                  onChange={(e) => setRateSoloHourly(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Group / hr</label>
+                <Input
+                  value={rateGroupHourly}
+                  onChange={(e) => setRateGroupHourly(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          ) : (
             <div className="space-y-1">
-              <label className="text-sm font-medium">Solo / hr</label>
+              <label className="text-sm font-medium">Flat Rate / hr</label>
               <Input
                 value={rateSoloHourly}
                 onChange={(e) => setRateSoloHourly(e.target.value)}
                 placeholder="0.00"
               />
+              <p className="text-xs text-muted-foreground">
+                This station type uses a single rate.
+              </p>
             </div>
+          )}
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Group / hr</label>
-              <Input
-                value={rateGroupHourly}
-                onChange={(e) => setRateGroupHourly(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
 
           <div className="flex items-center justify-between border rounded-md p-3 gap-3">
             <div>

@@ -363,6 +363,14 @@ export default function Dashboard() {
   
     if (!st || !session) return;
     const destination = stations?.find((s) => s.id === destinationStationId);
+    if (!destination || destination.stationType !== st.stationType) {
+      toast({
+        title: "Failed to transfer",
+        description: "You can only transfer to an available station of the same type.",
+        variant: "destructive",
+      });
+      return;
+    }
   
     try {
       await postWithAuth(`/api/sessions/${session.id}/transfer`, {
@@ -707,6 +715,7 @@ export default function Dashboard() {
         open={transferOpen}
         onOpenChange={setTransferOpen}
         currentStationName={selectedStation.name}
+        currentStationType={selectedStation.stationType}
         availableStations={(stations ?? []).filter((s) => 
           s.id !== selectedStationId && 
           (!s.activeSession || s.activeSession.status === "closed")

@@ -84,11 +84,15 @@ function toNumber(v: string | number | null | undefined): number {
   return typeof v === "number" ? v : Number(v);
 }
 
-function aggregateSessionItems(items: ApiSessionItem[]): SessionItem[] {
+function aggregateSessionItems(items: ApiSessionItem[], menuItems: MenuItem[] = []): SessionItem[] {
+  const menuCategoryById = new Map(
+    (menuItems ?? []).map((menuItem) => [menuItem.id, (menuItem.category ?? "").trim() || "Miscellaneous"])
+  );
   const map = new Map<string, SessionItem>();
   for (const row of items) {
     const key = row.menuItemId; // Aggregate by menu item
     const price = toNumber(row.priceSnapshot);
+    const category = menuCategoryById.get(row.menuItemId) ?? "Miscellaneous";
     const existing = map.get(key);
     if(!existing) {
       map.set(key, {
@@ -96,6 +100,7 @@ function aggregateSessionItems(items: ApiSessionItem[]): SessionItem[] {
         name: row.nameSnapshot,
         price,
         quantity: row.qty,
+        category,
       });
     } else {
       existing.quantity += row.qty;
@@ -611,7 +616,7 @@ export default function Dashboard() {
                   timeElapsed={getTimeElapsedForStation(selectedStation)}
                   timeCharge={getTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
                   startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
-                  items={aggregateSessionItems(selectedStation.activeSession.items ?? [])}
+                  items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
                   onAddItems={() => setAddItemsOpen(true)}
                   onCheckout={() => setCheckoutOpen(true)}
                   onTransfer={() => setTransferOpen(true)}
@@ -692,7 +697,7 @@ export default function Dashboard() {
             groupHourlyRate={toNumber(selectedStation.rateGroupHourly)}
             soloHourlyRate={toNumber(selectedStation.rateSoloHourly)}
             pricingTier={selectedStation.activeSession.pricingTier}
-            items={aggregateSessionItems(selectedStation.activeSession.items ?? [])}
+            items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
             onConfirmCheckout={({ grandTotal }) =>
               handleCheckoutConfirm(selectedStation, selectedStation.activeSession!.pricingTier,  grandTotal)
             }

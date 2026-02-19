@@ -24,4 +24,5 @@
 - `PascalCase` for components, `useX` for hooks, lowercase page filenames.
 - Agent-made changes should be minimal, scalable, and aligned with best practices.
 - Preserve existing project formatting, naming patterns, and folder structure.
+- When rewriting/replacing logic, remove dead code and any related unused imports/types/helpers.
 - Keep commits focused and imperative; PRs include summary, validation steps, and UI screenshots when relevant.

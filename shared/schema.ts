@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, integer, boolean, timestamp, pgEnum, } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, integer, boolean, timestamp, pgEnum, unique, } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -82,6 +82,27 @@ export const sessionItems = pgTable("session_items", {
 });
 
 /**
+ * CUSTOMERS (user/store-scoped)
+ */
+export const customers = pgTable(
+  "customers",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    storeId: varchar("store_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    phoneNumber: text("phone_number").notNull(),
+    totalHours: integer("total_hours").notNull().default(0),
+    isDiscountAvailable: boolean("is_discount_available").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+  },
+  (t) => [unique().on(t.storeId, t.phoneNumber)]
+);
+
+/**
  * Zod schemas
  */
 
@@ -112,6 +133,14 @@ export const insertStationSchema = createInsertSchema(stations).omit({
 
 export const updateStationSchema = insertStationSchema.partial();
 
+export const insertCustomerSchema = createInsertSchema(customers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateCustomerSchema = insertCustomerSchema.partial();
+
 export const startSessionSchema = z.object({
   stationId: z.string().min(1),
   pricingTier: z.enum(["solo", "group"]),
@@ -141,3 +170,4 @@ export type MenuItem = typeof menuItems.$inferSelect;
 export type Station = typeof stations.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionItem = typeof sessionItems.$inferSelect;
+export type Customer = typeof customers.$inferSelect;

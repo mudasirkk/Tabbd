@@ -213,12 +213,9 @@ export default function Dashboard() {
     if (!st.activeSession) return 0;
   
     const elapsed = computeElapsedSeconds(st.activeSession, now);
-  
-    const isPoolOrFoosball = st.stationType === "pool" || st.stationType === "foosball";
-    const effectiveTier: PricingTier = isPoolOrFoosball ? pricingTier : "group";
-  
+
     const rate =
-      effectiveTier === "solo" ? toNumber(st.rateSoloHourly) : toNumber(st.rateGroupHourly);
+      pricingTier === "solo" ? toNumber(st.rateSoloHourly) : toNumber(st.rateGroupHourly);
   
     return (elapsed / 3600) * rate;
   }
@@ -664,7 +661,6 @@ export default function Dashboard() {
         open={startSessionOpen}
         onOpenChange={setStartSessionOpen}
         stationName={stationToStart?.name ?? ""}
-        stationType={stationToStart?.stationType}
         rateSoloHourly={stationToStart?.rateSoloHourly}
         rateGroupHourly={stationToStart?.rateGroupHourly}
         onConfirmStart={(customStartTime, pricingTier) => {
@@ -700,7 +696,6 @@ export default function Dashboard() {
             open={checkoutOpen}
             onOpenChange={setCheckoutOpen}
             stationName={selectedStation.name}
-            stationType={selectedStation.stationType}
             timeElapsed={getTimeElapsedForStation(selectedStation)}
             groupHourlyRate={toNumber(selectedStation.rateGroupHourly)}
             soloHourlyRate={toNumber(selectedStation.rateSoloHourly)}

@@ -22,7 +22,6 @@ interface CheckoutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stationName: string;
-  stationType?: string;
   timeElapsed: number;
   groupHourlyRate: number;
   soloHourlyRate: number;
@@ -38,7 +37,6 @@ export function CheckoutDialog({
   open,
   onOpenChange,
   stationName,
-  stationType,
   timeElapsed,
   groupHourlyRate,
   soloHourlyRate,
@@ -46,10 +44,7 @@ export function CheckoutDialog({
   pricingTier,
   onConfirmCheckout,
 }: CheckoutDialogProps) {  
-  const isPoolOrFoosball = stationType === "pool" || stationType === "foosball";
-  const hourlyRate = isPoolOrFoosball
-    ? (pricingTier === "solo" ? soloHourlyRate : groupHourlyRate)
-    : groupHourlyRate;
+  const hourlyRate = pricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
   const recalculatedTimeCharge = (timeElapsed / 3600) * hourlyRate;
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -76,20 +71,18 @@ export function CheckoutDialog({
 
         <div className="space-y-6">
           <div className="space-y-4">
-          {isPoolOrFoosball && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Pricing Tier</Label>
-                <div
-                  className="flex items-center justify-between rounded-lg border bg-muted/50 p-3"
-                  data-testid="text-checkout-pricing-tier"
-                >
-                  <span className="text-sm text-muted-foreground">Selected at start</span>
-                  <span className="font-semibold">
-                    {pricingTier === "solo" ? "Solo" : "Group"}
-                  </span>
-                </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Pricing Tier</Label>
+              <div
+                className="flex items-center justify-between rounded-lg border bg-muted/50 p-3"
+                data-testid="text-checkout-pricing-tier"
+              >
+                <span className="text-sm text-muted-foreground">Selected at start</span>
+                <span className="font-semibold">
+                  {pricingTier === "solo" ? "Solo" : "Group"}
+                </span>
               </div>
-            )}
+            </div>
             
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-3">

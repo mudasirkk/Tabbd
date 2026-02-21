@@ -2,7 +2,6 @@ import { Clock, ShoppingBag, Receipt, ArrowRightLeft, Trash2 } from "lucide-reac
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 export interface SessionItem {
@@ -10,6 +9,7 @@ export interface SessionItem {
   name: string;
   price: number;
   quantity: number;
+  category?: string;
 }
 
 interface ActiveSessionPanelProps {
@@ -52,6 +52,18 @@ export function ActiveSessionPanel({
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const grandTotal = timeCharge + itemsTotal;
+  const sortedItems = [...items].sort((a, b) => {
+    const aCategory = (a.category ?? "").trim() || "Miscellaneous";
+    const bCategory = (b.category ?? "").trim() || "Miscellaneous";
+
+    if (aCategory === "Miscellaneous" && bCategory !== "Miscellaneous") return 1;
+    if (bCategory === "Miscellaneous" && aCategory !== "Miscellaneous") return -1;
+
+    const categoryCompare = aCategory.localeCompare(bCategory);
+    if (categoryCompare !== 0) return categoryCompare;
+
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <Card className="p-6" data-testid="panel-active-session">
@@ -107,10 +119,10 @@ export function ActiveSessionPanel({
               </Button>
             </div>
 
-            {items.length > 0 ? (
-              <ScrollArea className="max-h-48">
+            {sortedItems.length > 0 ? (
+              <div className="max-h-[260px] overflow-y-auto pr-2">
                 <div className="space-y-2">
-                  {items.map((item, index) => (
+                  {sortedItems.map((item, index) => (
                     <div
                       key={`${item.id}-${index}`}
                       className="flex items-center justify-between p-2 rounded-md hover-elevate"
@@ -138,7 +150,7 @@ export function ActiveSessionPanel({
                   </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No items added yet

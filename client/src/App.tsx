@@ -3,6 +3,7 @@ import Dashboard from "@/pages/dashboard";
 import SignIn from "@/pages/signin";
 import MenuManagementPage from "./pages/menu";
 import ProfilePage from "./pages/profile";
+import HistoryPage from "./pages/history";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
 
       {/* Protected route */}
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/history" component={HistoryPage} />
       <Route path="/menu" component={MenuManagementPage} />
       <Route path="/profile" component={ProfilePage} />
 

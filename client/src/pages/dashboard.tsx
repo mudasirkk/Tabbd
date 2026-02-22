@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
-import { Clock, LogOut, Hamburger, User as UserIcon } from "lucide-react";
+import { Clock, LogOut, Hamburger, User as UserIcon, History as HistoryIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -407,6 +407,7 @@ export default function Dashboard() {
       setShowPaymentProcessing(true);
 
       await qc.invalidateQueries({ queryKey: ["stations"] });
+      await qc.invalidateQueries({ queryKey: ["session-history"] });
     } catch (e: any) {
       toast({
         title: "Failed to checkout",
@@ -529,6 +530,10 @@ export default function Dashboard() {
             <Button variant="outline" onClick={() => window.location.assign("/menu")}>
               <Hamburger className="w-4 h-4 mr-2" />
               Menu
+            </Button>
+            <Button variant="outline" onClick={() => window.location.assign("/history")}>
+              <HistoryIcon className="w-4 h-4 mr-2" />
+              History
             </Button>
             <Button variant="outline" onClick={() => window.location.assign("/profile")}>
               <UserIcon className="w-4 h-4 mr-2" />

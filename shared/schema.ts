@@ -42,6 +42,7 @@ export const stations = pgTable("stations", {
   rateSoloHourly: numeric("rate_solo_hourly", { precision: 10, scale: 2 }).notNull().default("0"),
   rateGroupHourly: numeric("rate_group_hourly", { precision: 10, scale: 2 }).notNull().default("0"),
   isEnabled: boolean("is_enabled").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -106,11 +107,16 @@ export const updateMenuItemSchema = insertMenuItemSchema.partial();
 export const insertStationSchema = createInsertSchema(stations).omit({
   id: true,
   userId: true,
+  sortOrder: true,
   createdAt: true,
   updatedAt: true,
 });
 
 export const updateStationSchema = insertStationSchema.partial();
+
+export const reorderStationsSchema = z.object({
+  stationIds: z.array(z.string().min(1)).min(1),
+});
 
 export const startSessionSchema = z.object({
   stationId: z.string().min(1),

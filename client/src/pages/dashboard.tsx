@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
-import { Clock, LogOut, Hamburger, User as UserIcon, History as HistoryIcon } from "lucide-react";
+import { Clock, LogOut, Hamburger, User as UserIcon, History as HistoryIcon, Lock, Unlock } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -75,6 +75,7 @@ interface ApiStation {
   rateSoloHourly: string | number;
   rateGroupHourly: string | number;
   isEnabled: boolean;
+  sortOrder: number;
   activeSession: (ApiSession & { items: ApiSessionItem[] }) | null;
 }
 
@@ -156,6 +157,11 @@ export default function Dashboard() {
   const [removeItemOpen, setRemoveItemOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<SessionItem | null>(null);
   const [removeQty, setRemoveQty] = useState<number>(1);
+  const [isDragUnlocked, setIsDragUnlocked] = useState(false);
+  const [dragStationId, setDragStationId] = useState<string | null>(null);
+  const [dragOverStationId, setDragOverStationId] = useState<string | null>(null);
+  const [reorderingStations, setReorderingStations] = useState(false);
+  const [localStationOrder, setLocalStationOrder] = useState<string[] | null>(null);
 
 
   useEffect(() => {
@@ -201,6 +207,29 @@ export default function Dashboard() {
     () => (stations ?? []).filter((s) => s.activeSession && s.activeSession.status !== "closed"),
     [stations]
   );
+
+  const orderedStations = useMemo(() => {
+    const base = [...(stations ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    if (!localStationOrder || localStationOrder.length !== base.length) return base;
+
+    const byId = new Map(base.map((station) => [station.id, station]));
+    const reordered = localStationOrder
+      .map((id) => byId.get(id))
+      .filter((station): station is ApiStation => !!station);
+
+    if (reordered.length !== base.length) return base;
+    return reordered;
+  }, [stations, localStationOrder]);
+
+  useEffect(() => {
+    if (!localStationOrder || !stations) return;
+    const stationIds = new Set(stations.map((station) => station.id));
+    const hasMismatch =
+      localStationOrder.length !== stations.length ||
+      localStationOrder.some((id) => !stationIds.has(id));
+
+    if (hasMismatch) setLocalStationOrder(null);
+  }, [localStationOrder, stations]);
 
   const activeStationsCount = activeStations.length;
   
@@ -513,6 +542,63 @@ export default function Dashboard() {
     }
   }
 
+  async function persistStationOrder(stationIds: string[]) {
+    setReorderingStations(true);
+    try {
+      await patchWithAuth("/api/stations/reorder", { stationIds });
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      setLocalStationOrder(null);
+      toast({
+        title: "Failed to reorder stations",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } finally {
+      setReorderingStations(false);
+    }
+  }
+
+  function handleStationDragStart(stationId: string) {
+    if (!isDragUnlocked || reorderingStations) return;
+    setDragStationId(stationId);
+    setDragOverStationId(stationId);
+  }
+
+  function handleStationDragOver(stationId: string) {
+    if (!isDragUnlocked || !dragStationId || reorderingStations) return;
+    setDragOverStationId(stationId);
+  }
+
+  function handleStationDragEnd() {
+    setDragStationId(null);
+    setDragOverStationId(null);
+  }
+
+  async function handleStationDrop(dropStationId: string) {
+    if (!isDragUnlocked || !dragStationId || dragStationId === dropStationId || reorderingStations) {
+      handleStationDragEnd();
+      return;
+    }
+
+    const ids = orderedStations.map((station) => station.id);
+    const fromIndex = ids.indexOf(dragStationId);
+    const toIndex = ids.indexOf(dropStationId);
+    if (fromIndex === -1 || toIndex === -1) {
+      handleStationDragEnd();
+      return;
+    }
+
+    const nextIds = [...ids];
+    const [moved] = nextIds.splice(fromIndex, 1);
+    nextIds.splice(toIndex, 0, moved);
+
+    setLocalStationOrder(nextIds);
+    handleStationDragEnd();
+    await persistStationOrder(nextIds);
+  }
+
   /* ============================= RENDER ============================= */
 
   return (
@@ -560,9 +646,29 @@ export default function Dashboard() {
             </div>
 
 
-            <h2 className="text-xl font-semibold mb-4">All Stations</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">All Stations</h2>
+              <Button
+                variant={isDragUnlocked ? "default" : "outline"}
+                onClick={() => setIsDragUnlocked((prev) => !prev)}
+                disabled={reorderingStations}
+                data-testid="button-toggle-station-order-lock"
+              >
+                {isDragUnlocked ? (
+                  <>
+                    <Unlock className="w-4 h-4 mr-2" />
+                    Unlocked
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 mr-2" />
+                    Locked
+                  </>
+                )}
+              </Button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {(stations ?? []).map((st) => {
+              {orderedStations.map((st) => {
                 const session = st.activeSession;
                 const isActive = !!session && session.status !== "closed";
                 const isPaused = session?.status === "paused";
@@ -593,6 +699,30 @@ export default function Dashboard() {
                       setCheckoutOpen(true);
                     }}
                     onClick={() => isActive && setSelectedStationId(st.id)}
+                    dragEnabled={isDragUnlocked}
+                    isDragOver={isDragUnlocked && dragOverStationId === st.id && dragStationId !== st.id}
+                    dragHandleProps={{
+                      draggable: isDragUnlocked && !reorderingStations,
+                      onDragStart: (e) => {
+                        e.stopPropagation();
+                        e.dataTransfer.effectAllowed = "move";
+                        handleStationDragStart(st.id);
+                      },
+                      onDragEnd: () => handleStationDragEnd(),
+                    }}
+                    dropZoneProps={{
+                      onDragOver: (e) => {
+                        if (!isDragUnlocked || reorderingStations) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        handleStationDragOver(st.id);
+                      },
+                      onDrop: (e) => {
+                        if (!isDragUnlocked || reorderingStations) return;
+                        e.preventDefault();
+                        void handleStationDrop(st.id);
+                      },
+                    }}
                     />
                 );
               })}

@@ -1,4 +1,5 @@
-import { Clock, ShoppingBag, DollarSign, Users, User, } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, ShoppingBag, DollarSign, Users, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface CheckoutItem {
   id: string;
@@ -44,6 +46,11 @@ export function CheckoutDialog({
   pricingTier,
   onConfirmCheckout,
 }: CheckoutDialogProps) {  
+  const MIN_SPLIT_COUNT = 2;
+  const MAX_SPLIT_COUNT = 20;
+  const [isSplitBill, setIsSplitBill] = useState(false);
+  const [splitCountInput, setSplitCountInput] = useState(String(MIN_SPLIT_COUNT));
+
   const hourlyRate = pricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
   const recalculatedTimeCharge = (timeElapsed / 3600) * hourlyRate;
   const formatTime = (seconds: number) => {
@@ -56,6 +63,43 @@ export function CheckoutDialog({
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const grandTotal = recalculatedTimeCharge + itemsTotal;
+  const parsedSplitCount = Number(splitCountInput);
+  const isValidSplitCount =
+    Number.isInteger(parsedSplitCount) &&
+    parsedSplitCount >= MIN_SPLIT_COUNT &&
+    parsedSplitCount <= MAX_SPLIT_COUNT;
+  const splitCount = isValidSplitCount ? parsedSplitCount : MIN_SPLIT_COUNT;
+  const splitAmounts = useMemo(() => {
+    if (!isSplitBill || !isValidSplitCount) return [];
+    const totalCents = Math.max(0, Math.round(grandTotal * 100));
+    const base = Math.floor(totalCents / splitCount);
+    const remainder = totalCents % splitCount;
+
+    return Array.from({ length: splitCount }, (_, index) =>
+      (base + (index < remainder ? 1 : 0)) / 100
+    );
+  }, [grandTotal, isSplitBill, isValidSplitCount, splitCount]);
+
+  const allSplitAmountsEqual =
+    splitAmounts.length > 0 &&
+    splitAmounts.every((amount) => amount === splitAmounts[0]);
+
+  useEffect(() => {
+    if (open) return;
+    setIsSplitBill(false);
+    setSplitCountInput(String(MIN_SPLIT_COUNT));
+  }, [open]);
+
+  function handleSplitCountBlur() {
+    const next = Number(splitCountInput);
+    if (!Number.isFinite(next)) {
+      setSplitCountInput(String(MIN_SPLIT_COUNT));
+      return;
+    }
+
+    const clamped = Math.min(MAX_SPLIT_COUNT, Math.max(MIN_SPLIT_COUNT, Math.floor(next)));
+    setSplitCountInput(String(clamped));
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,6 +188,87 @@ export function CheckoutDialog({
             <span className="text-4xl font-mono font-bold text-primary" data-testid="text-grand-total">
               ${grandTotal.toFixed(2)}
             </span>
+          </div>
+
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Split Bill</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant={isSplitBill ? "default" : "outline"}
+                onClick={() => {
+                  setIsSplitBill((prev) => {
+                    const next = !prev;
+                    if (!next) setSplitCountInput(String(MIN_SPLIT_COUNT));
+                    return next;
+                  });
+                }}
+                data-testid="button-toggle-split-bill"
+              >
+                {isSplitBill ? "Disable" : "Enable"}
+              </Button>
+            </div>
+
+            {isSplitBill && (
+              <div className="space-y-3" data-testid="section-split-bill">
+                <div className="space-y-1">
+                  <Label htmlFor="split-count">Number of people</Label>
+                  <Input
+                    id="split-count"
+                    type="text"
+                    inputMode="numeric"
+                    value={splitCountInput}
+                    onChange={(e) => {
+                      const value = e.target.value.trim();
+                      if (value === "" || /^\d+$/.test(value)) {
+                        setSplitCountInput(value);
+                      }
+                    }}
+                    onBlur={handleSplitCountBlur}
+                    placeholder={String(MIN_SPLIT_COUNT)}
+                    data-testid="input-split-count"
+                  />
+                  {!isValidSplitCount && (
+                    <p className="text-xs text-destructive" data-testid="text-split-count-error">
+                      Enter a whole number between {MIN_SPLIT_COUNT} and {MAX_SPLIT_COUNT}.
+                    </p>
+                  )}
+                </div>
+
+                {isValidSplitCount && (
+                  <div className="space-y-2" data-testid="section-split-breakdown">
+                    <p className="text-sm text-muted-foreground">
+                      Split between {splitCount} people
+                    </p>
+                    {allSplitAmountsEqual ? (
+                      <p className="text-sm font-medium" data-testid="text-split-each">
+                        ${splitAmounts[0].toFixed(2)} each
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {splitAmounts.map((amount, index) => (
+                          <div
+                            key={`split-person-${index}`}
+                            className="flex items-center justify-between text-sm"
+                            data-testid={`text-split-person-${index + 1}`}
+                          >
+                            <span className="text-muted-foreground flex items-center gap-2">
+                              <User className="w-3 h-3" />
+                              Person {index + 1}
+                            </span>
+                            <span className="font-mono">${amount.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Button

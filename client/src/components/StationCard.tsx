@@ -1,4 +1,4 @@
-import { Clock, Play, Square, DollarSign, Pencil, Trash2 } from "lucide-react";
+import { Clock, Play, Square, DollarSign, Pencil, Trash2, Receipt } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -180,20 +180,48 @@ export function StationCard({
                   <Play className="w-4 h-4 mr-2" />
                   Resume
                 </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCompletePayment?.();
+                  }}
+                  disabled={!onCompletePayment}
+                  data-testid={`button-checkout-${id}`}
+                >
+                  <Receipt className="w-4 h-4 mr-2" />
+                  Checkout
+                </Button>
               </div>
             ) : (
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStop();
-                }}
-                data-testid={`button-stop-${id}`}
-              >
-                <Square className="w-4 h-4 mr-2" />
-                Pause
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStop();
+                  }}
+                  data-testid={`button-stop-${id}`}
+                >
+                  <Square className="w-4 h-4 mr-2" />
+                  Pause
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCompletePayment?.();
+                  }}
+                  disabled={!onCompletePayment}
+                  data-testid={`button-checkout-${id}`}
+                >
+                  <Receipt className="w-4 h-4 mr-2" />
+                  Checkout
+                </Button>
+              </div>
             )}
           </div>
         ) : (

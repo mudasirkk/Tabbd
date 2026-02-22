@@ -2,7 +2,9 @@
 
 ## Structure
 - `client/src`: React app (`App.tsx`, `main.tsx`), with `components/`, `pages/`, `hooks/`, `contexts/`, and `lib/`.
-- `server/`: Express API.
+- `server/`: Express API entry + shared route registration (`index.ts`, `routes.ts`).
+- `server/sessions/`: Session domain module (`route.ts`, `controller.ts`, `service.ts`, `storage.ts`, `errors.ts`).
+- `server/stations/`: Station domain module (`route.ts`, `controller.ts`, `service.ts`, `storage.ts`, `errors.ts`).
 - `shared/`: shared types/schemas (`@shared/*`).
 - `migrations/`: Drizzle SQL migrations.
 

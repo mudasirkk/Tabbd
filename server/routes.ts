@@ -4,18 +4,18 @@ import { z } from "zod";
 import {
   insertMenuItemSchema,
   insertStationSchema,
-  startSessionSchema,
-  addSessionItemSchema,
   updateMenuItemSchema,
   updateStationSchema,
   upsertProfileSchema,
-  transferSessionSchema,
-  removeSessionItemSchema,
 } from "@shared/schema";
 import { requireAuth, getUserId } from "./middleware/auth";
 import { storage } from "./storage";
+import { sessionsRouter } from "./sessions/route";
+import { sessionService } from "./sessions/service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.use(sessionsRouter);
+
   // Bootstrap user row
   app.get("/api/me", requireAuth, async (req, res) => {
    try {
@@ -98,9 +98,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = await storage.listStations(uid);
       const withSessions = await Promise.all(
         data.map(async (st) => {
-          const activeSession = await storage.getActiveSessionForStation(uid, st.id);
-          const items = activeSession ? await storage.listSessionItems(uid, activeSession.id) : [];
-          return { ...st, activeSession: activeSession ? { ...activeSession, items } : null };
+          const activeSession = await sessionService.getActiveSessionWithItems(uid, st.id);
+          return { ...st, activeSession };
         })
       );
       res.json(withSessions);
@@ -153,94 +152,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to delete station" });
     }
   });  
-
-  // Sessions
-
-  //Start
-  app.post("/api/sessions/start", requireAuth, async (req, res) => {
-    try {
-      const uid = getUserId(req);
-      const { stationId, pricingTier, startedAt } = startSessionSchema.parse(req.body);
-      const start = startedAt ? new Date(startedAt) : new Date();
-      res.status(201).json(await storage.startSession(uid, stationId, pricingTier, start));
-    } catch (err : any) {
-      if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
-      if (err?.message) return res.status(400).json({ error: err.message });
-      res.status(500).json({ error: "Failed to start session" });
-    }
-  });
-
-  //Pause
-  app.post("/api/sessions/:id/pause", requireAuth, async (req, res) => {
-    const uid = getUserId(req);
-    const session = await storage.pauseSession(uid, req.params.id);
-    if (!session) return res.status(404).json({ error: "Session not found or not active" });
-    res.json(session);
-  });
-
-  //Resume
-  app.post("/api/sessions/:id/resume", requireAuth, async (req, res) => {
-    const uid = getUserId(req);
-    const session = await storage.resumeSession(uid, req.params.id);
-    if (!session) return res.status(404).json({ error: "Session not found or not paused" });
-    res.json(session);
-  });
-
-  //Close
-  app.post("/api/sessions/:id/close", requireAuth, async (req, res) => {
-    try{
-      const uid = getUserId(req);
-      const session = await storage.closeSession(uid, req.params.id);
-      if (!session) return res.status(404).json({ error: "Session not found" });
-      res.json(session);
-    } catch (err: any) {
-      if (err?.message) return res.status(400).json({ error: err.message });
-      res.status(500).json({ error: "Failed to close session" });
-    }
-  });
-
-  //Transfer
-  app.post("/api/sessions/:id/transfer", requireAuth, async (req, res) => {
-    try {
-      const uid = getUserId(req);
-      const { destinationStationId } = transferSessionSchema.parse(req.body);
-
-      const updated = await storage.transferSession(uid, req.params.id, destinationStationId);
-      res.json(updated);
-    } catch (err: any) {
-      if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
-      if (err?.message) return res.status(400).json({ error: err.message });
-      console.error("[SESSIONS] transfer error:", err);
-      res.status(500).json({ error: "Failed to transfer session" });
-    }
-  });
-
-  //Items
-  app.post("/api/sessions/:id/items", requireAuth, async (req, res) => {
-    try {
-      const uid = getUserId(req);
-      const body = addSessionItemSchema.parse(req.body);
-      const result = await storage.addItemToSession(uid, req.params.id, body);
-      res.status(201).json(result);
-    } catch (err: any) {
-      if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
-      res.status(400).json({ error: err?.message ?? "Failed to add item" });
-    }
-  });
-  
-  // Remove qty of a menu item from an active session (restocks stock)
-app.post("/api/sessions/:id/items/remove", requireAuth, async (req, res) => {
-  try {
-    const uid = getUserId(req);
-    const { menuItemId, qty } = removeSessionItemSchema.parse(req.body);
-
-    const result = await storage.removeQtyFromSession(uid, req.params.id, menuItemId, qty);
-    res.json(result);
-  } catch (err: any) {
-    if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
-    res.status(400).json({ error: err?.message ?? "Failed to remove item" });
-  }
-});
 
   return createServer(app);
 }

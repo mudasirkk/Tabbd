@@ -1,8 +1,9 @@
-import { Clock, Play, Square, DollarSign, Pencil, Trash2, Receipt } from "lucide-react";
+import { Clock, Play, Square, Pencil, Trash2, Receipt, GripVertical } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import type { HTMLAttributes } from "react";
 
 export type StationType = "pool" | "gaming" | "foosball";
 
@@ -24,6 +25,10 @@ interface StationCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onClick?: () => void;
+  dragEnabled?: boolean;
+  dragHandleProps?: HTMLAttributes<HTMLDivElement>;
+  dropZoneProps?: HTMLAttributes<HTMLDivElement>;
+  isDragOver?: boolean;
 }
 
 const stationColors = {
@@ -56,6 +61,10 @@ export function StationCard({
   onEdit,
   onDelete,
   onClick,
+  dragEnabled = false,
+  dragHandleProps,
+  dropZoneProps,
+  isDragOver = false,
 }: StationCardProps) {
   const formatTime = (seconds: number) => {
     const s = Math.max(0, Math.floor(seconds));
@@ -89,12 +98,25 @@ export function StationCard({
       className={cn(
         "border-l-4 hover-elevate cursor-pointer transition-all",
         stationColors[type],
-        isActive && "ring-2 ring-primary/20"
+        isActive && "ring-2 ring-primary/20",
+        isDragOver && "ring-2 ring-primary"
       )}
       onClick={onClick}
       data-testid={`card-station-${id}`}
+      {...dropZoneProps}
     >
       <div className="p-6 space-y-4">
+        {dragEnabled && (
+          <div
+            className="w-full rounded-md border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground flex items-center gap-2 cursor-grab active:cursor-grabbing select-none"
+            onClick={(e) => e.stopPropagation()}
+            data-testid={`drag-zone-${id}`}
+            {...dragHandleProps}
+          >
+            <GripVertical className="w-4 h-4 shrink-0" />
+            <span className="truncate">Drag me to another Station to Swap</span>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <h3 className="text-lg font-semibold" data-testid={`text-station-name-${id}`}>

@@ -134,9 +134,6 @@ class SessionService {
       if (err?.message?.includes("already has an active session")) {
         throw new SessionConflictError(err.message);
       }
-      if (err?.message?.includes("must be the same type")) {
-        throw new SessionValidationError(err.message);
-      }
       if (err?.message === "Session is closed") {
         throw new SessionValidationError(err.message);
       }

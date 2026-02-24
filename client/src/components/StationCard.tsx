@@ -14,6 +14,7 @@ interface StationCardProps {
   isActive: boolean;
   rateSoloHourly?: number | string;
   rateGroupHourly?: number | string;
+  currentPricingTier?: "solo" | "group";
   isPaused?: boolean;
   timeElapsed?: number;
   currentCharge?: number;
@@ -50,6 +51,7 @@ export function StationCard({
   isActive,
   rateSoloHourly,
   rateGroupHourly,
+  currentPricingTier,
   isPaused = false,
   timeElapsed = 0,
   currentCharge = 0,
@@ -93,6 +95,10 @@ export function StationCard({
     });
   };
 
+  const showCurrentRateOnly = isActive && !!currentPricingTier;
+  const currentRate = currentPricingTier === "solo" ? rateSoloHourly : rateGroupHourly;
+  const currentTierLabel = currentPricingTier === "solo" ? "Solo/hr" : "Group/hr";
+
   return (
     <Card
       className={cn(
@@ -130,8 +136,16 @@ export function StationCard({
               {type === "pool" ? "Pool Table" : type === "gaming" ? "Gaming" : "Foosball"}
             </Badge>
             <div className="mt-2 text-xs text-muted-foreground space-y-1">
-              <div data-testid={`text-rate-solo-${id}`}>Solo/hr: {formatRate(rateSoloHourly)}</div>
-              <div data-testid={`text-rate-group-${id}`}>Group/hr: {formatRate(rateGroupHourly)}</div>
+              {showCurrentRateOnly ? (
+                <div className="font-semibold text-foreground" data-testid={`text-rate-current-${id}`}>
+                  Current: {currentTierLabel} {formatRate(currentRate)}
+                </div>
+              ) : (
+                <>
+                  <div data-testid={`text-rate-solo-${id}`}>Solo/hr: {formatRate(rateSoloHourly)}</div>
+                  <div data-testid={`text-rate-group-${id}`}>Group/hr: {formatRate(rateGroupHourly)}</div>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">

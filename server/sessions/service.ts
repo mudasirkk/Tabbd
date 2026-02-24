@@ -114,8 +114,12 @@ class SessionService {
     return session;
   }
 
-  async closeSession(userId: string, sessionId: string): Promise<Session> {
-    const session = await sessionStorage.closeSession(userId, sessionId);
+  async closeSession(
+    userId: string,
+    sessionId: string,
+    pricingTierOverride?: PricingTier
+  ): Promise<Session> {
+    const session = await sessionStorage.closeSession(userId, sessionId, pricingTierOverride);
     if (!session) throw new SessionNotFoundError("Session not found");
     return session;
   }

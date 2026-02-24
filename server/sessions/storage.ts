@@ -104,7 +104,11 @@ class SessionStorage {
     return row || undefined;
   }
 
-  async closeSession(userId: string, sessionId: string): Promise<Session | undefined> {
+  async closeSession(
+    userId: string,
+    sessionId: string,
+    pricingTierOverride?: "solo" | "group"
+  ): Promise<Session | undefined> {
     const [current] = await db
       .select()
       .from(sessions)
@@ -122,14 +126,28 @@ class SessionStorage {
       totalPausedSeconds += extra;
     }
 
+    const effectivePricingTier = pricingTierOverride ?? current.pricingTier;
+    const [station] = await db
+      .select({
+        rateSoloHourly: stations.rateSoloHourly,
+        rateGroupHourly: stations.rateGroupHourly,
+      })
+      .from(stations)
+      .where(and(eq(stations.userId, userId), eq(stations.id, current.stationId)))
+      .limit(1);
+
+    const selectedRateRaw =
+      effectivePricingTier === "solo" ? station?.rateSoloHourly : station?.rateGroupHourly;
+    const selectedRate = Number(selectedRateRaw ?? current.rateHourlySnapshot ?? 0);
+    const safeRate = Number.isFinite(selectedRate) ? selectedRate : 0;
+
     const grossSeconds = Math.max(
       0,
       Math.floor((closedAt.getTime() - current.startedAt.getTime()) / 1000)
     );
     const effectiveSeconds = Math.max(0, grossSeconds - totalPausedSeconds);
     const hours = effectiveSeconds / 3600;
-    const rate = Number(current.rateHourlySnapshot ?? 0);
-    const timeTotal = Number.isFinite(rate) ? hours * rate : 0;
+    const timeTotal = hours * safeRate;
     const totalAmount = timeTotal.toFixed(2);
 
     const [row] = await db
@@ -139,6 +157,8 @@ class SessionStorage {
         closedAt,
         pausedAt: null,
         totalPausedSeconds,
+        pricingTier: effectivePricingTier,
+        rateHourlySnapshot: safeRate.toFixed(2),
         totalAmount,
         updatedAt: new Date(),
       } as any)

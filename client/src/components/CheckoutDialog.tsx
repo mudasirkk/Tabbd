@@ -30,8 +30,9 @@ interface CheckoutDialogProps {
   items: CheckoutItem[];
   pricingTier: "group" | "solo";
   onConfirmCheckout: (checkoutData: {
-    timeCharge: number; 
+    timeCharge: number;
     grandTotal: number;
+    pricingTier: "group" | "solo";
   }) => void;
 }
 
@@ -50,8 +51,9 @@ export function CheckoutDialog({
   const MAX_SPLIT_COUNT = 20;
   const [isSplitBill, setIsSplitBill] = useState(false);
   const [splitCountInput, setSplitCountInput] = useState(String(MIN_SPLIT_COUNT));
+  const [selectedPricingTier, setSelectedPricingTier] = useState<"group" | "solo">(pricingTier);
 
-  const hourlyRate = pricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
+  const hourlyRate = selectedPricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
   const recalculatedTimeCharge = (timeElapsed / 3600) * hourlyRate;
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -90,6 +92,11 @@ export function CheckoutDialog({
     setSplitCountInput(String(MIN_SPLIT_COUNT));
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setSelectedPricingTier(pricingTier);
+  }, [open, pricingTier]);
+
   function handleSplitCountBlur() {
     const next = Number(splitCountInput);
     if (!Number.isFinite(next)) {
@@ -117,14 +124,23 @@ export function CheckoutDialog({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Pricing Tier</Label>
-              <div
-                className="flex items-center justify-between rounded-lg border bg-muted/50 p-3"
-                data-testid="text-checkout-pricing-tier"
-              >
-                <span className="text-sm text-muted-foreground">Selected at start</span>
-                <span className="font-semibold">
-                  {pricingTier === "solo" ? "Solo" : "Group"}
-                </span>
+              <div className="grid grid-cols-2 gap-2" data-testid="text-checkout-pricing-tier">
+                <Button
+                  type="button"
+                  variant={selectedPricingTier === "solo" ? "default" : "outline"}
+                  onClick={() => setSelectedPricingTier("solo")}
+                  data-testid="button-checkout-tier-solo"
+                >
+                  Solo
+                </Button>
+                <Button
+                  type="button"
+                  variant={selectedPricingTier === "group" ? "default" : "outline"}
+                  onClick={() => setSelectedPricingTier("group")}
+                  data-testid="button-checkout-tier-group"
+                >
+                  Group
+                </Button>
               </div>
             </div>
             
@@ -276,7 +292,8 @@ export function CheckoutDialog({
             size="lg"
             onClick={() => onConfirmCheckout({
               timeCharge: recalculatedTimeCharge,
-              grandTotal
+              grandTotal,
+              pricingTier: selectedPricingTier,
             })}
             data-testid="button-confirm-checkout"
           >

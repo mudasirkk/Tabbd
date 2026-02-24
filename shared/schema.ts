@@ -138,6 +138,10 @@ export const transferSessionSchema = z.object({
   destinationStationId: z.string().min(1),
 });
 
+export const closeSessionSchema = z.object({
+  pricingTier: z.enum(["solo", "group"]).optional(),
+});
+
 /**
  * TYPES
  */

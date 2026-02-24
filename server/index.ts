@@ -61,7 +61,7 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "3000", 10);
   const host = process.env.HOST || "127.0.0.1";
 
   console.log("BOOT: starting HTTP server");
@@ -70,11 +70,10 @@ app.use((req, res, next) => {
     {
       port,
       host,
-      reusePort: true,
     },
     () => {
       log(`[express] Server running on port ${port}`);
+      console.log(`Server URL: http://localhost:${port}`);
     }
   );
-  console.log("Server URL: http://localhost:5000");
 })();

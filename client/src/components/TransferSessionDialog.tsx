@@ -22,7 +22,6 @@ interface TransferSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentStationName: string;
-  currentStationType: StationType;
   availableStations: Station[];
   onConfirmTransfer: (destinationStationId: string) => void;
 }
@@ -43,16 +42,11 @@ export function TransferSessionDialog({
   open,
   onOpenChange,
   currentStationName,
-  currentStationType,
   availableStations,
   onConfirmTransfer,
 }: TransferSessionDialogProps) {
-  const sameTypeStations = availableStations.filter(
-    (station) => station.stationType === currentStationType
-  );
-
   // Group stations by type
-  const groupedStations = sameTypeStations.reduce((acc, station) => {
+  const groupedStations = availableStations.reduce((acc, station) => {
     if (!acc[station.stationType]) {
       acc[station.stationType] = [];
     }
@@ -82,7 +76,7 @@ export function TransferSessionDialog({
           <div className="space-y-4 py-2">
             {Object.keys(groupedStations).length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No available {stationTypeLabels[currentStationType]} to transfer to
+                No available stations to transfer to
               </div>
             ) : (
               Object.entries(groupedStations).map(([type, stations]) => (

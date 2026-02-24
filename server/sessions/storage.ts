@@ -186,16 +186,6 @@ class SessionStorage {
         .limit(1);
       if (!destStation) throw new Error("Destination station not found");
 
-      const [currentStation] = await tx
-        .select({ stationType: stations.stationType })
-        .from(stations)
-        .where(and(eq(stations.userId, userId), eq(stations.id, sess.stationId)))
-        .limit(1);
-      if (!currentStation) throw new Error("Current station not found");
-      if (currentStation.stationType !== destStation.stationType) {
-        throw new Error("Destination station must be the same type");
-      }
-
       const destActive = await tx
         .select({ id: sessions.id })
         .from(sessions)

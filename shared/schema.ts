@@ -83,6 +83,21 @@ export const sessionItems = pgTable("session_items", {
 });
 
 /**
+ * CUSTOMERS (user-scoped)
+ */
+export const customers = pgTable("customers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  phoneNumber: text("phone_number").notNull(),
+  totalSeconds: integer("total_seconds").notNull().default(0),
+  isDiscountAvailable: boolean("is_discount_available").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+/**
  * Zod schemas
  */
 
@@ -118,6 +133,17 @@ export const reorderStationsSchema = z.object({
   stationIds: z.array(z.string().min(1)).min(1),
 });
 
+export const insertCustomerSchema = createInsertSchema(customers).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  totalSeconds: z.number().int().min(0).default(0),
+});
+
+export const updateCustomerSchema = insertCustomerSchema.partial();
+
 export const startSessionSchema = z.object({
   stationId: z.string().min(1),
   pricingTier: z.enum(["solo", "group"]),
@@ -151,3 +177,4 @@ export type MenuItem = typeof menuItems.$inferSelect;
 export type Station = typeof stations.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionItem = typeof sessionItems.$inferSelect;
+export type Customer = typeof customers.$inferSelect;

@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import {
   addSessionItemSchema,
+  closeSessionSchema,
   removeSessionItemSchema,
   startSessionSchema,
   transferSessionSchema,
@@ -49,9 +50,11 @@ export async function resumeSession(req: Request, res: Response) {
 export async function closeSession(req: Request, res: Response) {
   try {
     const uid = getUserId(req);
-    const session = await sessionService.closeSession(uid, req.params.id);
+    const { pricingTier } = closeSessionSchema.parse(req.body ?? {});
+    const session = await sessionService.closeSession(uid, req.params.id, pricingTier);
     res.json(session);
   } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
     const { status, message } = toHttpError(err);
     return res.status(status).json({ error: message });
   }

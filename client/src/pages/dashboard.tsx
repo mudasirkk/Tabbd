@@ -426,7 +426,7 @@ export default function Dashboard() {
     if (!st.activeSession) return;
 
     try {
-      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, {});
+      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, { pricingTier });
 
       setCheckoutOpen(false);
       setPaymentData({
@@ -683,6 +683,7 @@ export default function Dashboard() {
                     isPaused={isPaused}
                     rateSoloHourly={st.rateSoloHourly}
                     rateGroupHourly={st.rateGroupHourly}
+                    currentPricingTier={session?.pricingTier}
                     startTime={session ? new Date(session.startedAt).getTime() : undefined}
                     timeElapsed={isActive ? getTimeElapsedForStation(st) : 0}
                     currentCharge={isActive ? getTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
@@ -836,8 +837,8 @@ export default function Dashboard() {
             soloHourlyRate={toNumber(selectedStation.rateSoloHourly)}
             pricingTier={selectedStation.activeSession.pricingTier}
             items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
-            onConfirmCheckout={({ grandTotal }) =>
-              handleCheckoutConfirm(selectedStation, selectedStation.activeSession!.pricingTier,  grandTotal)
+            onConfirmCheckout={({ grandTotal, pricingTier }) =>
+              handleCheckoutConfirm(selectedStation, pricingTier, grandTotal)
             }
           />
 

@@ -10,10 +10,12 @@ import { requireAuth, getUserId } from "./middleware/auth";
 import { storage } from "./storage";
 import { sessionsRouter } from "./sessions/route";
 import { stationsRouter } from "./stations/route";
+import { customersRouter } from "./customers/route";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(sessionsRouter);
   app.use(stationsRouter);
+  app.use(customersRouter);
 
   // Bootstrap user row
   app.get("/api/me", requireAuth, async (req, res) => {

@@ -17,6 +17,17 @@ interface ActiveSessionPanelProps {
   timeElapsed: number;
   timeCharge: number;
   startTime?: number;
+  timeSegments?: Array<{
+    id: string;
+    stationName: string;
+    effectiveSeconds: number;
+    pricingTier: "solo" | "group";
+    rateHourlyApplied: number;
+    timeAmount: number;
+  }>;
+  currentPricingTier?: "solo" | "group";
+  currentHourlyRate?: number;
+  currentSegmentCharge?: number;
   items: SessionItem[];
   onAddItems: () => void;
   onCheckout: () => void;
@@ -29,6 +40,10 @@ export function ActiveSessionPanel({
   timeElapsed,
   timeCharge,
   startTime,
+  timeSegments = [],
+  currentPricingTier = "group",
+  currentHourlyRate = 0,
+  currentSegmentCharge = 0,
   items,
   onAddItems,
   onCheckout,
@@ -98,6 +113,30 @@ export function ActiveSessionPanel({
               <p className="text-2xl font-mono font-semibold text-primary" data-testid="text-panel-time-charge">
                 ${timeCharge.toFixed(2)}
               </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-medium">Time Breakdown</p>
+            {timeSegments.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No prior transfer segments.</p>
+            ) : (
+              timeSegments.map((segment) => (
+                <div key={segment.id} className="flex items-center justify-between text-xs">
+                  <span>
+                    {segment.stationName} ({segment.pricingTier === "solo" ? "Solo" : "Group"}) - {formatTime(segment.effectiveSeconds)}
+                  </span>
+                  <span className="font-mono">
+                    ${segment.timeAmount.toFixed(2)}
+                  </span>
+                </div>
+              ))
+            )}
+            <div className="flex items-center justify-between border-t pt-2 text-xs">
+              <span>
+                Current ({currentPricingTier === "solo" ? "Solo" : "Group"}) @ ${currentHourlyRate.toFixed(2)}/hr
+              </span>
+              <span className="font-mono">${currentSegmentCharge.toFixed(2)}</span>
             </div>
           </div>
 

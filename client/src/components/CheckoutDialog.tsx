@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchWithAuth, postWithAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,19 +24,32 @@ interface CheckoutItem {
   quantity: number;
 }
 
+interface CheckoutTimeSegment {
+  id: string;
+  stationName: string;
+  effectiveSeconds: number;
+  pricingTier: "group" | "solo";
+  rateSoloHourlySnapshot: number;
+  rateGroupHourlySnapshot: number;
+}
+
 interface CheckoutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stationName: string;
-  timeElapsed: number;
+  currentSegmentSeconds: number;
+  accruedTimeSeconds: number;
   groupHourlyRate: number;
   soloHourlyRate: number;
   items: CheckoutItem[];
   pricingTier: "group" | "solo";
+  timeSegments: CheckoutTimeSegment[];
   onConfirmCheckout: (checkoutData: {
     timeCharge: number;
     grandTotal: number;
     pricingTier: "group" | "solo";
+    currentSegmentPricingTier: "group" | "solo";
+    segmentTierOverrides: Array<{ segmentId: string; pricingTier: "group" | "solo" }>;
   }) => void;
 }
 
@@ -43,18 +57,21 @@ export function CheckoutDialog({
   open,
   onOpenChange,
   stationName,
-  timeElapsed,
+  currentSegmentSeconds,
+  accruedTimeSeconds,
   groupHourlyRate,
   soloHourlyRate,
   items,
   pricingTier,
+  timeSegments,
   onConfirmCheckout,
-}: CheckoutDialogProps) {  
+}: CheckoutDialogProps) {
   const MIN_SPLIT_COUNT = 2;
   const MAX_SPLIT_COUNT = 20;
   const [isSplitBill, setIsSplitBill] = useState(false);
   const [splitCountInput, setSplitCountInput] = useState(String(MIN_SPLIT_COUNT));
   const [selectedPricingTier, setSelectedPricingTier] = useState<"group" | "solo">(pricingTier);
+  const [segmentTierSelections, setSegmentTierSelections] = useState<Record<string, "group" | "solo">>({});
   const [loyaltyPhone, setLoyaltyPhone] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
   const [checkDiscountLoading, setCheckDiscountLoading] = useState(false);
@@ -65,16 +82,32 @@ export function CheckoutDialog({
 
   const hasValidPhone = (value: string) => value.replace(/\D/g, "").length >= 10;
 
-  const hourlyRate = selectedPricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
-  const recalculatedTimeCharge = (timeElapsed / 3600) * hourlyRate;
-  // timeElapsed is in seconds (from computeElapsedSeconds); loyalty APIs use seconds
-  const secondsPlayed = Math.round(timeElapsed);
+  const totalSecondsPlayed = Math.round(accruedTimeSeconds + currentSegmentSeconds);
+  const currentHourlyRate = selectedPricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
+  const currentSegmentCharge = (currentSegmentSeconds / 3600) * currentHourlyRate;
+
+  const segmentRows = useMemo(() => {
+    return timeSegments.map((segment) => {
+      const selectedTier = segmentTierSelections[segment.id] ?? segment.pricingTier;
+      const appliedRate = selectedTier === "solo" ? segment.rateSoloHourlySnapshot : segment.rateGroupHourlySnapshot;
+      const amount = (segment.effectiveSeconds / 3600) * appliedRate;
+      return {
+        ...segment,
+        selectedTier,
+        appliedRate,
+        amount,
+      };
+    });
+  }, [segmentTierSelections, timeSegments]);
+
+  const accruedSegmentsCharge = segmentRows.reduce((sum, row) => sum + row.amount, 0);
+  const recalculatedTimeCharge = accruedSegmentsCharge + currentSegmentCharge;
+
   const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return hrs > 0
-      ? `${hrs}h ${mins}m`
-      : `${mins}m`;
+    const total = Math.max(0, Math.floor(seconds));
+    const hrs = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
   };
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -114,7 +147,12 @@ export function CheckoutDialog({
   useEffect(() => {
     if (!open) return;
     setSelectedPricingTier(pricingTier);
-  }, [open, pricingTier]);
+    const initial: Record<string, "group" | "solo"> = {};
+    for (const segment of timeSegments) {
+      initial[segment.id] = segment.pricingTier;
+    }
+    setSegmentTierSelections(initial);
+  }, [open, pricingTier, timeSegments]);
 
   function handleSplitCountBlur() {
     const next = Number(splitCountInput);
@@ -126,6 +164,10 @@ export function CheckoutDialog({
     const clamped = Math.min(MAX_SPLIT_COUNT, Math.max(MIN_SPLIT_COUNT, Math.floor(next)));
     setSplitCountInput(String(clamped));
   }
+
+  const tierOverrides = segmentRows
+    .filter((row) => row.selectedTier !== row.pricingTier)
+    .map((row) => ({ segmentId: row.id, pricingTier: row.selectedTier }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,41 +183,77 @@ export function CheckoutDialog({
 
         <div className="space-y-6">
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Pricing Tier</Label>
-              <div className="grid grid-cols-2 gap-2" data-testid="text-checkout-pricing-tier">
-                <Button
-                  type="button"
-                  variant={selectedPricingTier === "solo" ? "default" : "outline"}
-                  onClick={() => setSelectedPricingTier("solo")}
-                  data-testid="button-checkout-tier-solo"
-                >
-                  Solo
-                </Button>
-                <Button
-                  type="button"
-                  variant={selectedPricingTier === "group" ? "default" : "outline"}
-                  onClick={() => setSelectedPricingTier("group")}
-                  data-testid="button-checkout-tier-group"
-                >
-                  Group
-                </Button>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Time Charge</p>
-                  <p className="text-xs text-muted-foreground" data-testid="text-time-elapsed">
-                    {formatTime(timeElapsed)} @ ${hourlyRate.toFixed(2)}/hour
-                  </p>
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
+              <Label className="text-sm font-medium">Time Breakdown</Label>
+              {segmentRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No prior transfer segments.</p>
+              ) : (
+                <div className="space-y-3">
+                  {segmentRows.map((row) => (
+                    <div key={row.id} className="space-y-2 rounded border bg-background p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{row.stationName}</span>
+                        <span className="font-mono">{formatTime(row.effectiveSeconds)}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select
+                          value={row.selectedTier}
+                          onValueChange={(value: "group" | "solo") =>
+                            setSegmentTierSelections((prev) => ({ ...prev, [row.id]: value }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="solo">Solo</SelectItem>
+                            <SelectItem value="group">Group</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="text-right text-sm">
+                          <div className="text-muted-foreground">@ ${row.appliedRate.toFixed(2)}/hr</div>
+                          <div className="font-mono">${row.amount.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-2 rounded border bg-background p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Current: {stationName}</span>
+                  <span className="font-mono">{formatTime(currentSegmentSeconds)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={selectedPricingTier}
+                    onValueChange={(value: "group" | "solo") => setSelectedPricingTier(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solo">Solo</SelectItem>
+                      <SelectItem value="group">Group</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="text-right text-sm">
+                    <div className="text-muted-foreground">@ ${currentHourlyRate.toFixed(2)}/hr</div>
+                    <div className="font-mono">${currentSegmentCharge.toFixed(2)}</div>
+                  </div>
                 </div>
               </div>
-              <span className="text-lg font-mono font-semibold" data-testid="text-time-charge">
-                ${recalculatedTimeCharge.toFixed(2)}
-              </span>
+
+              <div className="flex items-center justify-between rounded bg-muted/50 p-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span>Total time: {formatTime(totalSecondsPlayed)}</span>
+                </div>
+                <span className="font-mono font-semibold" data-testid="text-time-charge">
+                  ${recalculatedTimeCharge.toFixed(2)}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
@@ -207,18 +285,14 @@ export function CheckoutDialog({
                   onClick={async () => {
                     setLoyaltyPhoneError(null);
                     const phone = loyaltyPhone.trim();
-                    if (!phone) {
-                      setLoyaltyPhoneError("Please enter a valid phone number");
-                      return;
-                    }
-                    if (!hasValidPhone(phone)) {
+                    if (!phone || !hasValidPhone(phone)) {
                       setLoyaltyPhoneError("Please enter a valid phone number");
                       return;
                     }
                     setCheckDiscountLoading(true);
                     try {
                       const res = await fetchWithAuth<{ discountAvailable: boolean }>(
-                        `/api/customers/${encodeURIComponent(phone)}/discounts/check?secondsPlayed=${encodeURIComponent(secondsPlayed)}`
+                        `/api/customers/${encodeURIComponent(phone)}/discounts/check?secondsPlayed=${encodeURIComponent(totalSecondsPlayed)}`
                       );
                       if (res.discountAvailable) {
                         setDiscountConfirmOpen(true);
@@ -245,7 +319,7 @@ export function CheckoutDialog({
                   }}
                   data-testid="button-check-discount"
                 >
-                  {checkDiscountLoading ? "Checking…" : "Check for discount"}
+                  {checkDiscountLoading ? "Checking..." : "Check for discount"}
                 </Button>
               </div>
             </div>
@@ -390,23 +464,24 @@ export function CheckoutDialog({
             onClick={async () => {
               setLoyaltyPhoneError(null);
               const phone = loyaltyPhone.trim();
-              if (phone && !discountApplied) {
-                if (!hasValidPhone(phone)) {
-                  setLoyaltyPhoneError("Please enter a valid phone number");
-                  return;
-                }
+              if (phone && !discountApplied && !hasValidPhone(phone)) {
+                setLoyaltyPhoneError("Please enter a valid phone number");
+                return;
               }
+
               setCheckoutLoading(true);
               try {
                 if (phone && !discountApplied) {
                   await postWithAuth(`/api/customers/${encodeURIComponent(phone)}/seconds`, {
-                    seconds: secondsPlayed,
+                    seconds: totalSecondsPlayed,
                   });
                 }
                 onConfirmCheckout({
                   timeCharge: recalculatedTimeCharge,
                   grandTotal: finalTotal,
                   pricingTier: selectedPricingTier,
+                  currentSegmentPricingTier: selectedPricingTier,
+                  segmentTierOverrides: tierOverrides,
                 });
               } catch (e: unknown) {
                 const message = e instanceof Error ? e.message : "Please try again";
@@ -425,7 +500,7 @@ export function CheckoutDialog({
             }}
             data-testid="button-confirm-checkout"
           >
-            {checkoutLoading ? "Completing…" : "Complete Checkout"}
+            {checkoutLoading ? "Completing..." : "Complete Checkout"}
           </Button>
         </div>
       </DialogContent>
@@ -453,7 +528,7 @@ export function CheckoutDialog({
                 try {
                   await postWithAuth(
                     `/api/customers/${encodeURIComponent(phone)}/discounts/apply`,
-                    { secondsPlayed }
+                    { secondsPlayed: totalSecondsPlayed }
                   );
                   setDiscountApplied(true);
                   setDiscountConfirmOpen(false);

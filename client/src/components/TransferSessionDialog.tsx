@@ -1,4 +1,5 @@
 import { ArrowRightLeft } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { StationType } from "./StationCard";
 
@@ -23,7 +26,12 @@ interface TransferSessionDialogProps {
   onOpenChange: (open: boolean) => void;
   currentStationName: string;
   availableStations: Station[];
-  onConfirmTransfer: (destinationStationId: string) => void;
+  currentPricingTier: "solo" | "group";
+  onConfirmTransfer: (payload: {
+    destinationStationId: string;
+    endingPricingTier: "solo" | "group";
+    nextPricingTier: "solo" | "group";
+  }) => void;
 }
 
 const stationTypeLabels = {
@@ -43,9 +51,9 @@ export function TransferSessionDialog({
   onOpenChange,
   currentStationName,
   availableStations,
+  currentPricingTier,
   onConfirmTransfer,
 }: TransferSessionDialogProps) {
-  // Group stations by type
   const groupedStations = availableStations.reduce((acc, station) => {
     if (!acc[station.stationType]) {
       acc[station.stationType] = [];
@@ -54,8 +62,23 @@ export function TransferSessionDialog({
     return acc;
   }, {} as Record<StationType, Station[]>);
 
+  const [endingPricingTier, setEndingPricingTier] =
+    useState<"solo" | "group">(currentPricingTier);
+  const [nextPricingTier, setNextPricingTier] =
+    useState<"solo" | "group">(currentPricingTier);
+
+  useEffect(() => {
+    if (!open) return;
+    setEndingPricingTier(currentPricingTier);
+    setNextPricingTier(currentPricingTier);
+  }, [currentPricingTier, open]);
+
   const handleTransfer = (stationId: string) => {
-    onConfirmTransfer(stationId);
+    onConfirmTransfer({
+      destinationStationId: stationId,
+      endingPricingTier,
+      nextPricingTier,
+    });
     onOpenChange(false);
   };
 
@@ -71,6 +94,33 @@ export function TransferSessionDialog({
             Transfer from <span className="font-semibold text-foreground">{currentStationName}</span> to another available station
           </DialogDescription>
         </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Ending Segment Tier</Label>
+            <Select value={endingPricingTier} onValueChange={(v: "solo" | "group") => setEndingPricingTier(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="solo">Solo</SelectItem>
+                <SelectItem value="group">Group</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Next Segment Tier</Label>
+            <Select value={nextPricingTier} onValueChange={(v: "solo" | "group") => setNextPricingTier(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="solo">Solo</SelectItem>
+                <SelectItem value="group">Group</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <ScrollArea className="max-h-[400px] pr-4">
           <div className="space-y-4 py-2">

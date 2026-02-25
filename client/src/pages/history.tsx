@@ -16,6 +16,20 @@ interface SessionHistoryItem {
   createdAt: string;
 }
 
+interface SessionHistoryTimeSegment {
+  id: string;
+  sequence: number;
+  stationId: string;
+  stationName: string;
+  stationType: string;
+  startedAt: string;
+  endedAt: string;
+  effectiveSeconds: number;
+  pricingTier: "solo" | "group";
+  rateHourlyApplied: number;
+  timeAmount: number;
+}
+
 interface SessionHistoryRow {
   id: string;
   stationId: string;
@@ -31,6 +45,7 @@ interface SessionHistoryRow {
   grandTotal: number;
   itemCount: number;
   items: SessionHistoryItem[];
+  timeSegments: SessionHistoryTimeSegment[];
 }
 
 function formatDateTime(input: string): string {
@@ -175,6 +190,26 @@ export default function HistoryPage() {
                       <div className="text-muted-foreground">Items Subtotal</div>
                       <div className="font-mono">{formatMoney(row.itemsSubtotal)}</div>
                     </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Time Segments</div>
+                    {row.timeSegments.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No transfer segments recorded.</p>
+                    ) : (
+                      row.timeSegments.map((segment) => (
+                        <div key={segment.id} className="flex items-center justify-between text-sm border rounded-md p-2">
+                          <span>
+                            {segment.sequence}. {segment.stationName} ({segment.pricingTier === "solo" ? "Solo" : "Group"}) - {formatDuration(segment.effectiveSeconds)}
+                          </span>
+                          <span className="font-mono">
+                            ${segment.rateHourlyApplied.toFixed(2)}/hr | {formatMoney(segment.timeAmount)}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <Separator />

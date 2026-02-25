@@ -65,6 +65,23 @@ interface ApiSession {
   pricingTier: PricingTier;
   closedAt: string | null;
   items?: ApiSessionItem[];
+  timeSegments?: Array<{
+    id: string;
+    sequence: number;
+    stationId: string;
+    stationName: string;
+    stationType: string;
+    startedAt: string;
+    endedAt: string;
+    effectiveSeconds: number;
+    pricingTier: PricingTier;
+    rateSoloHourlySnapshot: number;
+    rateGroupHourlySnapshot: number;
+    rateHourlyApplied: number;
+    timeAmount: number;
+  }>;
+  accruedTimeSeconds?: number;
+  accruedTimeCharge?: number;
 }
 
 interface ApiStation {
@@ -233,12 +250,12 @@ export default function Dashboard() {
 
   const activeStationsCount = activeStations.length;
   
-  function getTimeElapsedForStation(st: ApiStation): number {
+  function getCurrentSegmentElapsedForStation(st: ApiStation): number {
     if (!st.activeSession) return 0;
     return computeElapsedSeconds(st.activeSession, now);
   }
 
-  function getTimeChargeForStation(st: ApiStation, pricingTier: PricingTier = "group"): number {
+  function getCurrentSegmentChargeForStation(st: ApiStation, pricingTier: PricingTier = "group"): number {
     if (!st.activeSession) return 0;
   
     const elapsed = computeElapsedSeconds(st.activeSession, now);
@@ -247,6 +264,22 @@ export default function Dashboard() {
       pricingTier === "solo" ? toNumber(st.rateSoloHourly) : toNumber(st.rateGroupHourly);
   
     return (elapsed / 3600) * rate;
+  }
+
+  function getAccruedTimeSeconds(st: ApiStation): number {
+    return st.activeSession?.accruedTimeSeconds ?? 0;
+  }
+
+  function getAccruedTimeCharge(st: ApiStation): number {
+    return st.activeSession?.accruedTimeCharge ?? 0;
+  }
+
+  function getTotalElapsedForStation(st: ApiStation): number {
+    return getAccruedTimeSeconds(st) + getCurrentSegmentElapsedForStation(st);
+  }
+
+  function getTotalTimeChargeForStation(st: ApiStation, pricingTier: PricingTier = "group"): number {
+    return getAccruedTimeCharge(st) + getCurrentSegmentChargeForStation(st, pricingTier);
   }
   
 
@@ -383,11 +416,16 @@ export default function Dashboard() {
     }
   }
 
-  async function handleConfirmTransfer(destinationStationId: string) {
+  async function handleConfirmTransfer(payload: {
+    destinationStationId: string;
+    endingPricingTier: PricingTier;
+    nextPricingTier: PricingTier;
+  }) {
     const st = selectedStation;
     const session = st?.activeSession;
   
     if (!st || !session) return;
+    const { destinationStationId, endingPricingTier, nextPricingTier } = payload;
     const destination = stations?.find((s) => s.id === destinationStationId);
     if (!destination) {
       toast({
@@ -401,6 +439,8 @@ export default function Dashboard() {
     try {
       await postWithAuth(`/api/sessions/${session.id}/transfer`, {
         destinationStationId,
+        endingPricingTier,
+        nextPricingTier,
       });
   
       toast({
@@ -422,11 +462,24 @@ export default function Dashboard() {
   }
   
 
-  async function handleCheckoutConfirm(st: ApiStation, pricingTier: PricingTier, grandTotal: number) {
+  async function handleCheckoutConfirm(
+    st: ApiStation,
+    payload: {
+      pricingTier: PricingTier;
+      currentSegmentPricingTier: PricingTier;
+      segmentTierOverrides: Array<{ segmentId: string; pricingTier: PricingTier }>;
+      grandTotal: number;
+    }
+  ) {
     if (!st.activeSession) return;
+    const { pricingTier, currentSegmentPricingTier, segmentTierOverrides, grandTotal } = payload;
 
     try {
-      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, { pricingTier });
+      await postWithAuth(`/api/sessions/${st.activeSession.id}/close`, {
+        pricingTier,
+        currentSegmentPricingTier,
+        segmentTierOverrides,
+      });
 
       setCheckoutOpen(false);
       setPaymentData({
@@ -685,8 +738,8 @@ export default function Dashboard() {
                     rateGroupHourly={st.rateGroupHourly}
                     currentPricingTier={session?.pricingTier}
                     startTime={session ? new Date(session.startedAt).getTime() : undefined}
-                    timeElapsed={isActive ? getTimeElapsedForStation(st) : 0}
-                    currentCharge={isActive ? getTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
+                    timeElapsed={isActive ? getTotalElapsedForStation(st) : 0}
+                    currentCharge={isActive ? getTotalTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
                     onEdit={() => openEditStation(st)}
                     onDelete={() => handleDeleteStation(st)}
                     onStart={() => {
@@ -754,9 +807,24 @@ export default function Dashboard() {
 
                 <ActiveSessionPanel
                   stationName={selectedStation.name}
-                  timeElapsed={getTimeElapsedForStation(selectedStation)}
-                  timeCharge={getTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
+                  timeElapsed={getTotalElapsedForStation(selectedStation)}
+                  timeCharge={getTotalTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
                   startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
+                  timeSegments={(selectedStation.activeSession.timeSegments ?? []).map((segment) => ({
+                    id: segment.id,
+                    stationName: segment.stationName,
+                    effectiveSeconds: segment.effectiveSeconds,
+                    pricingTier: segment.pricingTier,
+                    rateHourlyApplied: toNumber(segment.rateHourlyApplied),
+                    timeAmount: toNumber(segment.timeAmount),
+                  }))}
+                  currentPricingTier={selectedStation.activeSession.pricingTier}
+                  currentHourlyRate={
+                    selectedStation.activeSession.pricingTier === "solo"
+                      ? toNumber(selectedStation.rateSoloHourly)
+                      : toNumber(selectedStation.rateGroupHourly)
+                  }
+                  currentSegmentCharge={getCurrentSegmentChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
                   items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
                   onAddItems={() => setAddItemsOpen(true)}
                   onCheckout={() => setCheckoutOpen(true)}
@@ -832,13 +900,27 @@ export default function Dashboard() {
             open={checkoutOpen}
             onOpenChange={setCheckoutOpen}
             stationName={selectedStation.name}
-            timeElapsed={getTimeElapsedForStation(selectedStation)}
+            currentSegmentSeconds={getCurrentSegmentElapsedForStation(selectedStation)}
+            accruedTimeSeconds={getAccruedTimeSeconds(selectedStation)}
             groupHourlyRate={toNumber(selectedStation.rateGroupHourly)}
             soloHourlyRate={toNumber(selectedStation.rateSoloHourly)}
             pricingTier={selectedStation.activeSession.pricingTier}
+            timeSegments={(selectedStation.activeSession.timeSegments ?? []).map((segment) => ({
+              id: segment.id,
+              stationName: segment.stationName,
+              effectiveSeconds: segment.effectiveSeconds,
+              pricingTier: segment.pricingTier,
+              rateSoloHourlySnapshot: toNumber(segment.rateSoloHourlySnapshot),
+              rateGroupHourlySnapshot: toNumber(segment.rateGroupHourlySnapshot),
+            }))}
             items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
-            onConfirmCheckout={({ grandTotal, pricingTier }) =>
-              handleCheckoutConfirm(selectedStation, pricingTier, grandTotal)
+            onConfirmCheckout={({ grandTotal, pricingTier, currentSegmentPricingTier, segmentTierOverrides }) =>
+              handleCheckoutConfirm(selectedStation, {
+                grandTotal,
+                pricingTier,
+                currentSegmentPricingTier,
+                segmentTierOverrides,
+              })
             }
           />
 
@@ -846,6 +928,7 @@ export default function Dashboard() {
         open={transferOpen}
         onOpenChange={setTransferOpen}
         currentStationName={selectedStation.name}
+        currentPricingTier={selectedStation.activeSession.pricingTier}
         availableStations={(stations ?? []).filter((s) => 
           s.id !== selectedStationId && 
           (!s.activeSession || s.activeSession.status === "closed")

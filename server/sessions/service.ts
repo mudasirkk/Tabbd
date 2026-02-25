@@ -1,5 +1,5 @@
-import type { Session, SessionItem } from "@shared/schema";
-import { sessionStorage, type ClosedSessionHistoryRow } from "./storage";
+import type { Session, SessionItem, SessionTimeSegment } from "@shared/schema";
+import { sessionStorage, type ClosedSessionHistoryRow, type CloseSessionInput } from "./storage";
 import {
   SessionConflictError,
   SessionNotFoundError,
@@ -18,6 +18,22 @@ export interface SessionHistoryItemDto {
   createdAt: string;
 }
 
+export interface SessionTimeSegmentDto {
+  id: string;
+  sequence: number;
+  stationId: string;
+  stationName: string;
+  stationType: string;
+  startedAt: string;
+  endedAt: string;
+  effectiveSeconds: number;
+  pricingTier: PricingTier;
+  rateSoloHourlySnapshot: number;
+  rateGroupHourlySnapshot: number;
+  rateHourlyApplied: number;
+  timeAmount: number;
+}
+
 export interface SessionHistoryDto {
   id: string;
   stationId: string;
@@ -33,6 +49,7 @@ export interface SessionHistoryDto {
   grandTotal: number;
   itemCount: number;
   items: SessionHistoryItemDto[];
+  timeSegments: SessionTimeSegmentDto[];
 }
 
 class SessionService {
@@ -47,6 +64,24 @@ class SessionService {
     const startedAtMs = session.startedAt.getTime();
     const gross = Math.max(0, Math.floor((closedAtMs - startedAtMs) / 1000));
     return Math.max(0, gross - (session.totalPausedSeconds ?? 0));
+  }
+
+  private mapSegment(segment: SessionTimeSegment): SessionTimeSegmentDto {
+    return {
+      id: segment.id,
+      sequence: segment.sequence,
+      stationId: segment.stationId,
+      stationName: segment.stationNameSnapshot,
+      stationType: segment.stationTypeSnapshot,
+      startedAt: segment.startedAt.toISOString(),
+      endedAt: segment.endedAt.toISOString(),
+      effectiveSeconds: segment.effectiveSeconds,
+      pricingTier: segment.pricingTier,
+      rateSoloHourlySnapshot: this.toNumber(segment.rateSoloHourlySnapshot),
+      rateGroupHourlySnapshot: this.toNumber(segment.rateGroupHourlySnapshot),
+      rateHourlyApplied: this.toNumber(segment.rateHourlyApplied),
+      timeAmount: this.toNumber(segment.timeAmount),
+    };
   }
 
   private mapHistoryRow(row: ClosedSessionHistoryRow): SessionHistoryDto {
@@ -64,7 +99,13 @@ class SessionService {
       };
     });
     const itemsSubtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-    const timeCharge = this.toNumber(row.totalAmount);
+
+    const timeSegments = (row.timeSegments ?? []).map((segment) => this.mapSegment(segment));
+    const summedSeconds = timeSegments.reduce((sum, segment) => sum + segment.effectiveSeconds, 0);
+    const summedAmount = timeSegments.reduce((sum, segment) => sum + segment.timeAmount, 0);
+
+    const timeCharge = timeSegments.length > 0 ? summedAmount : this.toNumber(row.totalAmount);
+    const effectiveSeconds = timeSegments.length > 0 ? summedSeconds : this.computeEffectiveSeconds(row);
     const grandTotal = timeCharge + itemsSubtotal;
     const itemCount = row.items.reduce((sum, item) => sum + (item.qty ?? 0), 0);
 
@@ -77,20 +118,37 @@ class SessionService {
       startedAt: row.startedAt.toISOString(),
       closedAt: (row.closedAt ?? row.updatedAt).toISOString(),
       totalPausedSeconds: row.totalPausedSeconds ?? 0,
-      effectiveSeconds: this.computeEffectiveSeconds(row),
+      effectiveSeconds,
       timeCharge,
       itemsSubtotal,
       grandTotal,
       itemCount,
       items,
+      timeSegments,
     };
   }
 
-  async getActiveSessionWithItems(userId: string, stationId: string): Promise<(Session & { items: SessionItem[] }) | null> {
+  async getActiveSessionWithItems(userId: string, stationId: string): Promise<(Session & {
+    items: SessionItem[];
+    timeSegments: SessionTimeSegmentDto[];
+    accruedTimeSeconds: number;
+    accruedTimeCharge: number;
+  }) | null> {
     const active = await sessionStorage.getActiveSessionForStation(userId, stationId);
     if (!active) return null;
     const items = await sessionStorage.listSessionItems(userId, active.id);
-    return { ...active, items };
+    const segments = await sessionStorage.listSessionTimeSegments(userId, active.id);
+    const mappedSegments = segments.map((segment) => this.mapSegment(segment));
+    const accruedTimeSeconds = mappedSegments.reduce((sum, segment) => sum + segment.effectiveSeconds, 0);
+    const accruedTimeCharge = mappedSegments.reduce((sum, segment) => sum + segment.timeAmount, 0);
+
+    return {
+      ...active,
+      items,
+      timeSegments: mappedSegments,
+      accruedTimeSeconds,
+      accruedTimeCharge,
+    };
   }
 
   async startSession(userId: string, stationId: string, pricingTier: PricingTier, startedAt: Date): Promise<Session> {
@@ -117,16 +175,28 @@ class SessionService {
   async closeSession(
     userId: string,
     sessionId: string,
-    pricingTierOverride?: PricingTier
+    input?: CloseSessionInput
   ): Promise<Session> {
-    const session = await sessionStorage.closeSession(userId, sessionId, pricingTierOverride);
+    const session = await sessionStorage.closeSession(userId, sessionId, input);
     if (!session) throw new SessionNotFoundError("Session not found");
     return session;
   }
 
-  async transferSession(userId: string, sessionId: string, destinationStationId: string): Promise<Session> {
+  async transferSession(
+    userId: string,
+    sessionId: string,
+    destinationStationId: string,
+    endingPricingTier?: PricingTier,
+    nextPricingTier?: PricingTier,
+  ): Promise<Session> {
     try {
-      return await sessionStorage.transferSession(userId, sessionId, destinationStationId);
+      return await sessionStorage.transferSession(
+        userId,
+        sessionId,
+        destinationStationId,
+        endingPricingTier,
+        nextPricingTier,
+      );
     } catch (err: any) {
       if (err?.message === "Session not found" || err?.message === "Destination station not found") {
         throw new SessionNotFoundError(err.message);
@@ -135,6 +205,9 @@ class SessionService {
         throw new SessionConflictError(err.message);
       }
       if (err?.message === "Session is closed") {
+        throw new SessionValidationError(err.message);
+      }
+      if (err?.message === "Invalid segment override") {
         throw new SessionValidationError(err.message);
       }
       throw err;

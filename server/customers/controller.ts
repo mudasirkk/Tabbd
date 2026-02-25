@@ -103,12 +103,12 @@ export async function applyCustomerDiscount(req: Request, res: Response) {
     const userId = getUserId(req);
     const phoneNumber = req.params.phoneNumber;
     const { secondsPlayed } = applyDiscountBodySchema.parse(req.body);
-    const customer = await customerService.applyDiscount({
+    const { customer, discountRate } = await customerService.applyDiscount({
       userId,
       phoneNumber,
       secondsPlayed,
     });
-    res.json(customer);
+    res.json({ customer, discountRate });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: err.flatten() });

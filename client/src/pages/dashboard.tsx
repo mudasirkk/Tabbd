@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
-import { Clock, LogOut, Hamburger, User as UserIcon, History as HistoryIcon, Lock, Unlock } from "lucide-react";
+import { Clock, LogOut, Hamburger, Settings as SettingsIcon, History as HistoryIcon, Lock, Unlock } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -621,9 +621,9 @@ export default function Dashboard() {
               <HistoryIcon className="w-4 h-4 mr-2" />
               History
             </Button>
-            <Button variant="outline" onClick={() => window.location.assign("/profile")}>
-              <UserIcon className="w-4 h-4 mr-2" />
-              Profile
+            <Button variant="outline" onClick={() => window.location.assign("/settings")}>
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              Settings
             </Button>
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />

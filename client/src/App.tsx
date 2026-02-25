@@ -15,7 +15,7 @@ export default function App() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/history" component={HistoryPage} />
       <Route path="/menu" component={MenuManagementPage} />
-      <Route path="/profile" component={ProfilePage} />
+      <Route path="/settings" component={ProfilePage} />
 
       {/* Default: send unknown paths to signin */}
       <Route>

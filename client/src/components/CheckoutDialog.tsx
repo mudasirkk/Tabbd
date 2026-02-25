@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Clock, ShoppingBag, DollarSign, Users, User, Gift } from "lucide-react";
 import {
   Dialog,
@@ -57,11 +58,26 @@ export function CheckoutDialog({
   const [selectedPricingTier, setSelectedPricingTier] = useState<"group" | "solo">(pricingTier);
   const [loyaltyPhone, setLoyaltyPhone] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
+  const [appliedDiscountRate, setAppliedDiscountRate] = useState<number | null>(null);
   const [checkDiscountLoading, setCheckDiscountLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [discountConfirmOpen, setDiscountConfirmOpen] = useState(false);
   const [loyaltyPhoneError, setLoyaltyPhoneError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (open) {
+      setDiscountApplied(false);
+      setAppliedDiscountRate(null);
+    }
+  }, [open]);
+
+  const { data: me } = useQuery<{ discountRate: string }>({
+    queryKey: ["me"],
+    queryFn: () => fetchWithAuth<{ discountRate: string }>("/api/me"),
+    enabled: open,
+  });
+  const storeDiscountRatePct = me?.discountRate != null ? Math.round(parseFloat(me.discountRate) * 100) : 20;
 
   const hasValidPhone = (value: string) => value.replace(/\D/g, "").length >= 10;
 
@@ -79,7 +95,8 @@ export function CheckoutDialog({
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const grandTotal = recalculatedTimeCharge + itemsTotal;
-  const finalTotal = discountApplied ? grandTotal * 0.8 : grandTotal;
+  const discountMultiplier = appliedDiscountRate != null ? 1 - appliedDiscountRate : 1;
+  const finalTotal = grandTotal * discountMultiplier;
   const parsedSplitCount = Number(splitCountInput);
   const isValidSplitCount =
     Number.isInteger(parsedSplitCount) &&
@@ -293,8 +310,10 @@ export function CheckoutDialog({
                 <DollarSign className="w-6 h-6 text-primary" />
                 <span className="text-lg font-semibold">Total Amount</span>
               </div>
-              {discountApplied && (
-                <span className="text-sm text-muted-foreground">20% loyalty discount applied</span>
+              {discountApplied && appliedDiscountRate != null && (
+                <span className="text-sm text-muted-foreground">
+                  {Math.round(appliedDiscountRate * 100)}% loyalty discount applied
+                </span>
               )}
             </div>
             <span className="text-4xl font-mono font-bold text-primary" data-testid="text-grand-total">
@@ -435,7 +454,7 @@ export function CheckoutDialog({
           <DialogHeader>
             <DialogTitle>Apply discount?</DialogTitle>
             <DialogDescription>
-              Do you want to apply the loyalty discount? The total will be reduced by 20%.
+              Do you want to apply the loyalty discount? The total will be reduced by {storeDiscountRatePct}%.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -451,13 +470,16 @@ export function CheckoutDialog({
                 const phone = loyaltyPhone.trim();
                 if (!phone) return;
                 try {
-                  await postWithAuth(
+                  const res = await postWithAuth<{ customer: unknown; discountRate: string }>(
                     `/api/customers/${encodeURIComponent(phone)}/discounts/apply`,
                     { secondsPlayed }
                   );
+                  const rate = parseFloat(res.discountRate);
+                  setAppliedDiscountRate(rate);
                   setDiscountApplied(true);
                   setDiscountConfirmOpen(false);
-                  toast({ title: "Discount applied", description: "20% discount has been applied to the total." });
+                  const pct = Math.round(rate * 100);
+                  toast({ title: "Discount applied", description: `${pct}% discount has been applied to the total.` });
                 } catch (e: unknown) {
                   toast({
                     title: "Failed to apply discount",

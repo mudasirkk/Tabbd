@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, integer, boolean, timestamp, pgEnum, } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, integer, boolean, timestamp, pgEnum, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -11,6 +11,8 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey(),
   email: text("email"),
   storeName: text("store_name"),
+  discountThresholdSeconds: integer("discount_threshold_seconds").notNull().default(20 * 3600),
+  discountRate: decimal("discount_rate", { precision: 5, scale: 4 }).notNull().default("0.2"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -108,6 +110,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const upsertProfileSchema = z.object({
   storeName: z.string().min(1).max(120),
+});
+
+/** Body for POST /api/settings: threshold in hours (converted to seconds on server), rate 0–1 */
+export const updateDiscountSettingsSchema = z.object({
+  discountThresholdHours: z.coerce.number().min(0),
+  discountRate: z.coerce.number().min(0).max(1),
 });
 
 export const insertMenuItemSchema = createInsertSchema(menuItems).omit({

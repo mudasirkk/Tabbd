@@ -224,6 +224,16 @@ export default function Dashboard() {
     () => (stations ?? []).filter((s) => s.activeSession && s.activeSession.status !== "closed"),
     [stations]
   );
+  const activeCheckoutSessions = useMemo(
+    () =>
+      activeStations
+        .filter((station) => !!station.activeSession)
+        .map((station) => ({
+          sessionId: station.activeSession!.id,
+          stationName: station.name,
+        })),
+    [activeStations]
+  );
 
   const orderedStations = useMemo(() => {
     const base = [...(stations ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -899,7 +909,15 @@ export default function Dashboard() {
         <CheckoutDialog
             open={checkoutOpen}
             onOpenChange={setCheckoutOpen}
+            sessionId={selectedStation.activeSession.id}
             stationName={selectedStation.name}
+            activeSessions={activeCheckoutSessions}
+            onSessionChange={(nextSessionId) => {
+              const targetStation = activeStations.find(
+                (station) => station.activeSession?.id === nextSessionId
+              );
+              if (targetStation) setSelectedStationId(targetStation.id);
+            }}
             currentSegmentSeconds={getCurrentSegmentElapsedForStation(selectedStation)}
             accruedTimeSeconds={getAccruedTimeSeconds(selectedStation)}
             groupHourlyRate={toNumber(selectedStation.rateGroupHourly)}

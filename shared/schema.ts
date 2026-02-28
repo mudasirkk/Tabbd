@@ -71,6 +71,25 @@ export const sessions = pgTable("sessions", {
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
+export const sessionTimeSegments = pgTable("session_time_segments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  sequence: integer("sequence").notNull(),
+  stationId: varchar("station_id").notNull().references(() => stations.id, { onDelete: "cascade" }),
+  stationNameSnapshot: text("station_name_snapshot").notNull(),
+  stationTypeSnapshot: text("station_type_snapshot").notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  endedAt: timestamp("ended_at").notNull(),
+  effectiveSeconds: integer("effective_seconds").notNull(),
+  pricingTier: pricingTierEnum("pricing_tier").notNull(),
+  rateSoloHourlySnapshot: numeric("rate_solo_hourly_snapshot", { precision: 10, scale: 2 }).notNull(),
+  rateGroupHourlySnapshot: numeric("rate_group_hourly_snapshot", { precision: 10, scale: 2 }).notNull(),
+  rateHourlyApplied: numeric("rate_hourly_applied", { precision: 10, scale: 2 }).notNull(),
+  timeAmount: numeric("time_amount", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
 /**
  * SESSION ITEMS (snapshots)
  */
@@ -170,10 +189,17 @@ export const removeSessionItemSchema = z.object({
 
 export const transferSessionSchema = z.object({
   destinationStationId: z.string().min(1),
+  endingPricingTier: z.enum(["solo", "group"]).optional(),
+  nextPricingTier: z.enum(["solo", "group"]).optional(),
 });
 
 export const closeSessionSchema = z.object({
   pricingTier: z.enum(["solo", "group"]).optional(),
+  currentSegmentPricingTier: z.enum(["solo", "group"]).optional(),
+  segmentTierOverrides: z.array(z.object({
+    segmentId: z.string().min(1),
+    pricingTier: z.enum(["solo", "group"]),
+  })).optional(),
 });
 
 /**
@@ -184,5 +210,6 @@ export type User = typeof users.$inferSelect;
 export type MenuItem = typeof menuItems.$inferSelect;
 export type Station = typeof stations.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+export type SessionTimeSegment = typeof sessionTimeSegments.$inferSelect;
 export type SessionItem = typeof sessionItems.$inferSelect;
 export type Customer = typeof customers.$inferSelect;

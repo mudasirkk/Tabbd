@@ -50,8 +50,8 @@ export async function resumeSession(req: Request, res: Response) {
 export async function closeSession(req: Request, res: Response) {
   try {
     const uid = getUserId(req);
-    const { pricingTier } = closeSessionSchema.parse(req.body ?? {});
-    const session = await sessionService.closeSession(uid, req.params.id, pricingTier);
+    const parsed = closeSessionSchema.parse(req.body ?? {});
+    const session = await sessionService.closeSession(uid, req.params.id, parsed);
     res.json(session);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
@@ -63,8 +63,14 @@ export async function closeSession(req: Request, res: Response) {
 export async function transferSession(req: Request, res: Response) {
   try {
     const uid = getUserId(req);
-    const { destinationStationId } = transferSessionSchema.parse(req.body);
-    const session = await sessionService.transferSession(uid, req.params.id, destinationStationId);
+    const { destinationStationId, endingPricingTier, nextPricingTier } = transferSessionSchema.parse(req.body);
+    const session = await sessionService.transferSession(
+      uid,
+      req.params.id,
+      destinationStationId,
+      endingPricingTier,
+      nextPricingTier,
+    );
     res.json(session);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });

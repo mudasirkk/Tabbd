@@ -1,9 +1,11 @@
 import type { Customer } from "@shared/schema";
 import { customerStorage } from "./storage";
+import { settingsStorage } from "../settings/storage";
 import { CustomerConflictError, CustomerNotFoundError, CustomerValidationError } from "./errors";
 import { normalizePhoneNumber } from "./utils";
 
-const DISCOUNT_THRESHOLD_SECONDS = 20 * 3600; // 20 hours in seconds
+/** Default from users schema when user row not found */
+const DEFAULT_DISCOUNT_THRESHOLD_SECONDS = 20 * 3600;
 
 type CreateCustomerData = {
   phoneNumber: string;
@@ -21,7 +23,25 @@ type UpdateCustomerData = Partial<{
   isDiscountAvailable: boolean;
 }>;
 
+export type ApplyDiscountResult = { customer: Customer; discountRate: string };
+
 class CustomerService {
+
+    private async getDiscountSettings(userId: string): Promise<{ discountThresholdSeconds: number; discountRate: string }> {
+        const user = await settingsStorage.getUserById(userId);
+        return { discountThresholdSeconds: user?.discountThresholdSeconds ?? DEFAULT_DISCOUNT_THRESHOLD_SECONDS, discountRate: user?.discountRate ?? "0.2" };
+    }
+    
+  private async getDiscountThresholdSeconds(userId: string): Promise<number> {
+    const user = await settingsStorage.getUserById(userId);
+    return user?.discountThresholdSeconds ?? DEFAULT_DISCOUNT_THRESHOLD_SECONDS;
+  }
+
+  private async getDiscountRate(userId: string): Promise<string> {
+    const user = await settingsStorage.getUserById(userId);
+    return user?.discountRate ?? "0.2";
+  }
+
   async listCustomers(userId: string): Promise<Customer[]> {
     return customerStorage.listCustomers(userId);
   }
@@ -74,9 +94,10 @@ class CustomerService {
     phoneNumber: string,
     secondsToAdd: number
   ): Promise<Customer> {
+    const thresholdSeconds = await this.getDiscountThresholdSeconds(userId);
     const customer = await this.getOrCreateByPhone(userId, normalizePhoneNumber(phoneNumber));
     const newTotalSeconds = Math.max(0, Math.round(customer.totalSeconds + secondsToAdd));
-    const isDiscountAvailable = newTotalSeconds >= DISCOUNT_THRESHOLD_SECONDS;
+    const isDiscountAvailable = newTotalSeconds >= thresholdSeconds;
     const updated = await customerStorage.updateCustomer(userId, customer.id, {
       totalSeconds: newTotalSeconds,
       isDiscountAvailable,
@@ -95,15 +116,17 @@ class CustomerService {
     phoneNumber: string;
     secondsPlayed: number;
   }): Promise<boolean> {
+    const thresholdSeconds = await this.getDiscountThresholdSeconds(userId);
     const customer = await this.getOrCreateByPhone(userId, normalizePhoneNumber(phoneNumber));
     if (customer.isDiscountAvailable) return true;
     const totalAfter = customer.totalSeconds + secondsPlayed;
-    return totalAfter >= DISCOUNT_THRESHOLD_SECONDS;
+    return totalAfter >= thresholdSeconds;
   }
 
   /**
-   * Apply discount: deduct 20 hours (in seconds) and set isDiscountAvailable.
+   * Apply discount: deduct threshold (user's hours setting) and set isDiscountAvailable.
    * Uses atomic conditional update (only when is_discount_available = true) to prevent double redeem.
+   * Returns the customer and the store's discount rate for the frontend to apply to the total.
    */
   async applyDiscount({
     userId,
@@ -113,7 +136,8 @@ class CustomerService {
     userId: string;
     phoneNumber: string;
     secondsPlayed: number;
-  }): Promise<Customer> {
+  }): Promise<ApplyDiscountResult> {
+    const { discountThresholdSeconds, discountRate } = await this.getDiscountSettings(userId);
     const normalized = normalizePhoneNumber(phoneNumber);
     if (!normalized) throw new CustomerValidationError("Invalid or missing phone number");
     await this.getOrCreateByPhone(userId, normalized);
@@ -121,12 +145,12 @@ class CustomerService {
       userId,
       normalized,
       secondsPlayed,
-      DISCOUNT_THRESHOLD_SECONDS
+      discountThresholdSeconds
     );
     if (!updated) {
       throw new CustomerConflictError("Discount already applied or not eligible");
     }
-    return updated;
+    return { customer: updated, discountRate };
   }
 
   async updateTotalSeconds(userId: string, customerId: string, seconds: number): Promise<Customer> {

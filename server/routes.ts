@@ -4,48 +4,19 @@ import { z } from "zod";
 import {
   insertMenuItemSchema,
   updateMenuItemSchema,
-  upsertProfileSchema,
 } from "@shared/schema";
 import { requireAuth, getUserId } from "./middleware/auth";
 import { storage } from "./storage";
 import { sessionsRouter } from "./sessions/route";
 import { stationsRouter } from "./stations/route";
 import { customersRouter } from "./customers/route";
+import { settingsRouter } from "./settings/route";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(sessionsRouter);
   app.use(stationsRouter);
   app.use(customersRouter);
-
-  // Bootstrap user row
-  app.get("/api/me", requireAuth, async (req, res) => {
-   try {
-    const uid = getUserId(req);
-    const email = req.user?.email ?? null;
-
-    await storage.upsertUser({id: uid, email });
-    const user = await storage.getUserById(uid);
-
-    res.json({ uid, email, storeName: user?.storeName ?? null});
-   } catch(err) {
-    console.error("[ME] Error", err);
-    res.status(500).json({ error: "Failed to load profile" })
-   }
-  });
-  
-  // Profile
-  app.patch("/api/profile", requireAuth, async (req, res) => {
-    try {
-      const uid = getUserId(req);
-      const { storeName } = upsertProfileSchema.parse(req.body);
-      const user = await storage.updateProfile(uid, storeName);
-      res.json({ uid: user.id, email: user.email ?? null, storeName: user.storeName ?? null});
-    } catch (err) {
-      if(err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
-      console.error("[PROFILE] Error:", err);
-      res.status(500).json({ error: "Failed to update profile" });
-    }
-  });
+  app.use(settingsRouter);
 
   // Menu CRUD
 

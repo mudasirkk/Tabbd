@@ -7,3 +7,5 @@ vite.config.ts.*
 *.tar.gz
 .env
 client/.env
+.claude/
+.playwright-mcp/

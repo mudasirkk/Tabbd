@@ -9,12 +9,14 @@ import {
   checkCustomerDiscount,
   applyCustomerDiscount,
   addCustomerSeconds,
+  lookupCustomerByPhone,
 } from "./controller";
 
 const router = Router();
 
 router.get("/api/customers", requireAuth, listCustomers);
 router.post("/api/customers", requireAuth, createCustomer);
+router.get("/api/customers/phone/:phoneNumber", requireAuth, lookupCustomerByPhone);
 router.get("/api/customers/:id", requireAuth, getCustomer);
 router.patch("/api/customers/:id", requireAuth, updateCustomer);
 router.delete("/api/customers/:id", requireAuth, deleteCustomer);

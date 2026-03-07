@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Plus, Minus, ShoppingBag, } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Plus, Minus, ShoppingBag, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 export interface MenuItem {
   id: string;
@@ -42,11 +43,19 @@ export function AddItemsDialog({
   onRemoveItem,
   onConfirm,
 }: AddItemsDialogProps) {
+  const [searchQuery, setSearchQuery] = useState("");
 
   const totalItems = Object.values(selectedItems).reduce((sum, count) => sum + count, 0);
 
   const groupedMenu = useMemo(() => {
-    const activeMenu = (menuItems ?? []).filter((i) => i.isActive ?? true);
+    const q = searchQuery.trim().toLowerCase();
+    const activeMenu = (menuItems ?? []).filter((i) => {
+      if (!(i.isActive ?? true)) return false;
+      if (!q) return true;
+      const nameMatch = i.name.toLowerCase().includes(q);
+      const catMatch = (i.category ?? "Miscellaneous").toLowerCase().includes(q);
+      return nameMatch || catMatch;
+    });
 
     const groups = new Map<string, MenuItem[]>();
     for (const item of activeMenu) {
@@ -68,11 +77,16 @@ export function AddItemsDialog({
       category,
       items: (groups.get(category) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
     }));
-  }, [menuItems]);
+  }, [menuItems, searchQuery]);
 
+
+  function handleOpenChange(o: boolean) {
+    if (!o) setSearchQuery("");
+    onOpenChange(o);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col" data-testid="dialog-add-items">
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">Add Items to {stationName}</DialogTitle>
@@ -80,6 +94,17 @@ export function AddItemsDialog({
             Select items from your menu to add to the customer's tab
           </DialogDescription>
         </DialogHeader>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search items or category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            data-testid="input-item-search"
+          />
+        </div>
 
         <div className="flex-1 overflow-y-auto pr-2 space-y-4">
           <div className="space-y-6 pb-4">

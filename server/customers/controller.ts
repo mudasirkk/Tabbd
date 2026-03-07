@@ -118,6 +118,18 @@ export async function applyCustomerDiscount(req: Request, res: Response) {
   }
 }
 
+export async function lookupCustomerByPhone(req: Request, res: Response) {
+  try {
+    const userId = getUserId(req);
+    const result = await customerService.lookupByPhone(userId, req.params.phoneNumber);
+    if (!result) return res.status(404).json({ error: "Customer not found" });
+    res.json(result);
+  } catch (err) {
+    const { status, message } = toHttpError(err);
+    res.status(status).json({ error: message });
+  }
+}
+
 export async function addCustomerSeconds(req: Request, res: Response) {
   try {
     const userId = getUserId(req);

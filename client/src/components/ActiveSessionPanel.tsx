@@ -1,8 +1,8 @@
+import { useMemo, useState } from "react";
 import { ArrowRightLeft, Clock, Receipt, ShoppingBag, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
 export interface SessionItem {
   id: string;
@@ -50,6 +50,8 @@ export function ActiveSessionPanel({
   onTransfer,
   onRequestRemoveItem,
 }: ActiveSessionPanelProps) {
+  const [activeTab, setActiveTab] = useState<"breakdown" | "items">("items");
+
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -67,28 +69,42 @@ export function ActiveSessionPanel({
 
   const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const grandTotal = timeCharge + itemsTotal;
-  const sortedItems = [...items].sort((a, b) => {
-    const aCategory = (a.category ?? "").trim() || "Miscellaneous";
-    const bCategory = (b.category ?? "").trim() || "Miscellaneous";
 
-    if (aCategory === "Miscellaneous" && bCategory !== "Miscellaneous") return 1;
-    if (bCategory === "Miscellaneous" && aCategory !== "Miscellaneous") return -1;
-
-    const categoryCompare = aCategory.localeCompare(bCategory);
-    if (categoryCompare !== 0) return categoryCompare;
-
-    return a.name.localeCompare(b.name);
-  });
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, SessionItem[]>();
+    for (const item of items) {
+      const cat = (item.category ?? "").trim() || "Miscellaneous";
+      const arr = groups.get(cat) ?? [];
+      arr.push(item);
+      groups.set(cat, arr);
+    }
+    const categories = Array.from(groups.keys()).sort((a, b) => {
+      if (a === "Miscellaneous") return 1;
+      if (b === "Miscellaneous") return -1;
+      return a.localeCompare(b);
+    });
+    return categories.map((cat) => ({
+      category: cat,
+      items: (groups.get(cat) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+  }, [items]);
 
   return (
     <Card className="h-[calc(100dvh-7rem)] overflow-hidden p-4 lg:h-[calc(100vh-8rem)]" data-testid="panel-active-session">
       <div className="flex h-full flex-col gap-3">
-        <div className="space-y-2">
+
+        {/* Station header */}
+        <div className="space-y-1">
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-2xl font-semibold" data-testid="text-panel-station-name">
+            <h2
+              className="text-2xl font-bold font-display leading-tight"
+              data-testid="text-panel-station-name"
+            >
               {stationName}
             </h2>
-            <Badge variant="default">Active Session</Badge>
+            <Badge className="bg-primary/15 text-primary border border-primary/30 shrink-0">
+              Active Session
+            </Badge>
           </div>
           {startTime && (
             <p className="text-sm text-muted-foreground" data-testid="text-panel-start-time">
@@ -97,133 +113,176 @@ export function ActiveSessionPanel({
           )}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          <div className="rounded-lg bg-muted/50 p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Time Elapsed</p>
-                  <p className="text-3xl font-mono font-bold" data-testid="text-panel-timer">
-                    {formatTime(timeElapsed)}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Time Charge</p>
-                <p className="text-2xl font-mono font-semibold text-primary" data-testid="text-panel-time-charge">
-                  ${timeCharge.toFixed(2)}
-                </p>
-              </div>
-            </div>
+        {/* Compact timer row */}
+        <div className="flex items-center justify-between rounded-md bg-muted/40 border border-border/50 px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+            <p className="text-2xl font-mono font-bold leading-none" data-testid="text-panel-timer">
+              {formatTime(timeElapsed)}
+            </p>
           </div>
-
-          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Time Breakdown</p>
-              <span className="text-xs text-muted-foreground">
-                {timeSegments.length} transferred segment{timeSegments.length === 1 ? "" : "s"}
-              </span>
-            </div>
-
-            {timeSegments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No prior transfer segments.</p>
-            ) : (
-              <div className="max-h-28 overflow-y-auto rounded-md border bg-background sm:max-h-32 lg:max-h-36">
-                <div className="space-y-2 p-2 pr-3">
-                  {timeSegments.map((segment) => (
-                    <div key={segment.id} className="rounded border bg-background p-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{segment.stationName}</span>
-                        <span className="font-mono">${segment.timeAmount.toFixed(2)}</span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-muted-foreground">
-                        <span>{segment.pricingTier === "solo" ? "Solo" : "Group"}</span>
-                        <span>{formatTime(segment.effectiveSeconds)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between rounded border bg-background p-2 text-xs">
-              <span>
-                Current ({currentPricingTier === "solo" ? "Solo" : "Group"}) @ ${currentHourlyRate.toFixed(2)}/hr
-              </span>
-              <span className="font-mono">${currentSegmentCharge.toFixed(2)}</span>
-            </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide leading-none mb-0.5">
+              Time Charge
+            </p>
+            <p
+              className="text-xl font-mono font-semibold text-primary leading-none"
+              data-testid="text-panel-time-charge"
+            >
+              ${timeCharge.toFixed(2)}
+            </p>
           </div>
+        </div>
 
-          <Separator />
-
-          <div className="flex min-h-0 flex-1 flex-col space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="h-4 w-4" />
-                <h3 className="font-medium">Items on Tab</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={onAddItems} data-testid="button-add-items">
-                Add Items
-              </Button>
-            </div>
-
-            {sortedItems.length > 0 ? (
-              <div className="max-h-28 overflow-y-auto rounded-md border p-2 sm:max-h-32 lg:max-h-36">
-                <div className="space-y-2">
-                  {sortedItems.map((item, index) => (
-                    <div
-                      key={`${item.id}-${index}`}
-                      className="flex items-center justify-between rounded-md p-2 hover-elevate"
-                      data-testid={`item-session-${item.id}-${index}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">
-                          {item.quantity}x {item.name}
-                        </span>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onRequestRemoveItem(item)}
-                          aria-label={`Remove ${item.name}`}
-                          data-testid={`button-remove-session-item-${item.id}-${index}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <span className="text-sm font-mono" data-testid={`text-session-item-total-${item.id}-${index}`}>
-                        ${(item.price * item.quantity).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="py-3 text-center text-sm text-muted-foreground">No items added yet</p>
+        {/* Tab bar */}
+        <div className="flex border-b border-border">
+          <button
+            className={`flex items-center gap-1.5 px-3 pb-2 text-sm font-medium transition-colors ${
+              activeTab === "breakdown"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setActiveTab("breakdown")}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Time Breakdown
+            {timeSegments.length > 0 && (
+              <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${
+                activeTab === "breakdown" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              }`}>
+                {timeSegments.length}
+              </span>
             )}
-
+          </button>
+          <button
+            className={`flex items-center gap-1.5 px-3 pb-2 text-sm font-medium transition-colors ${
+              activeTab === "items"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setActiveTab("items")}
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            Items
             {items.length > 0 && (
-              <div className="flex items-center justify-between border-t pt-2">
-                <span className="text-sm font-medium">Items Subtotal</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${
+                activeTab === "items" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              }`}>
+                {items.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Tab content */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          {activeTab === "breakdown" ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              {timeSegments.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">No prior transfer segments.</p>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
+                  {timeSegments.map((segment) => (
+                    <div key={segment.id} className="rounded-md border bg-muted/20 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm">{segment.stationName}</span>
+                        <span className="font-mono font-semibold">${segment.timeAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-between text-muted-foreground">
+                        <span>{segment.pricingTier === "solo" ? "Solo" : "Group"}</span>
+                        <span className="font-mono">{formatTime(segment.effectiveSeconds)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between rounded-md border bg-background/60 px-3 py-2 text-xs shrink-0">
+                <span className="text-muted-foreground">
+                  Current ({currentPricingTier === "solo" ? "Solo" : "Group"}) @ ${currentHourlyRate.toFixed(2)}/hr
+                </span>
+                <span className="font-mono font-semibold">${currentSegmentCharge.toFixed(2)}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="flex items-center justify-between shrink-0">
+                <span className="text-xs text-muted-foreground">
+                  {items.length === 0 ? "No items added yet" : `${items.length} item${items.length === 1 ? "" : "s"}`}
+                </span>
+                <Button variant="outline" size="sm" onClick={onAddItems} data-testid="button-add-items">
+                  Add Items
+                </Button>
+              </div>
+
+              {groupedItems.length > 0 ? (
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                  {groupedItems.map((group) => (
+                    <div key={group.category}>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-1 mb-1">
+                        {group.category}
+                      </p>
+                      {group.items.map((item, index) => (
+                        <div
+                          key={`${item.id}-${index}`}
+                          className="flex items-center justify-between rounded-md px-2 py-1.5 hover-elevate"
+                          data-testid={`item-session-${item.id}-${index}`}
+                        >
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-sm truncate">
+                              {item.quantity}x {item.name}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => onRequestRemoveItem(item)}
+                              aria-label={`Remove ${item.name}`}
+                              data-testid={`button-remove-session-item-${item.id}-${index}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          <span
+                            className="text-sm font-mono shrink-0"
+                            data-testid={`text-session-item-total-${item.id}-${index}`}
+                          >
+                            ${(item.price * item.quantity).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1" />
+              )}
+
+              <div className="flex items-center justify-between border-t pt-2 shrink-0">
+                <span className="text-sm font-medium text-muted-foreground">Items Subtotal</span>
                 <span className="text-sm font-mono font-medium" data-testid="text-panel-items-subtotal">
                   ${itemsTotal.toFixed(2)}
                 </span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        <Separator />
-
-        <div className="flex items-center justify-between rounded-lg bg-primary/10 p-4">
-          <span className="text-lg font-semibold">Total Amount</span>
-          <span className="text-3xl font-mono font-bold text-primary" data-testid="text-panel-grand-total">
+        {/* Total strip */}
+        <div className="flex items-center justify-between rounded-lg bg-primary/10 border border-primary/20 px-4 py-3">
+          <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Total Amount
+          </span>
+          <span
+            className="text-4xl font-mono font-bold text-primary"
+            data-testid="text-panel-grand-total"
+          >
             ${grandTotal.toFixed(2)}
           </span>
         </div>
 
+        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-3">
           <Button variant="outline" size="lg" onClick={onTransfer} data-testid="button-transfer-session">
             <ArrowRightLeft className="mr-2 h-4 w-4" />

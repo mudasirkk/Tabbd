@@ -1,5 +1,5 @@
 import type { Session, SessionItem, SessionTimeSegment } from "@shared/schema";
-import { sessionStorage, type ClosedSessionHistoryRow, type CloseSessionInput } from "./storage";
+import { sessionStorage, type ClosedSessionHistoryRow, type CloseSessionInput, type SessionItemWithCategory } from "./storage";
 import {
   SessionConflictError,
   SessionNotFoundError,
@@ -16,6 +16,7 @@ export interface SessionHistoryItemDto {
   qty: number;
   lineTotal: number;
   createdAt: string;
+  category: string | null;
 }
 
 export interface SessionTimeSegmentDto {
@@ -85,7 +86,7 @@ class SessionService {
   }
 
   private mapHistoryRow(row: ClosedSessionHistoryRow): SessionHistoryDto {
-    const items = row.items.map((item) => {
+    const items = row.items.map((item: SessionItemWithCategory) => {
       const unit = this.toNumber(item.priceSnapshot);
       const lineTotal = unit * item.qty;
       return {
@@ -96,6 +97,7 @@ class SessionService {
         qty: item.qty,
         lineTotal,
         createdAt: item.createdAt.toISOString(),
+        category: item.category ?? null,
       };
     });
     const itemsSubtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
@@ -242,8 +244,8 @@ class SessionService {
     }
   }
 
-  async listHistory(userId: string): Promise<SessionHistoryDto[]> {
-    const rows = await sessionStorage.listClosedSessionsWithItems(userId);
+  async listHistory(userId: string, date?: string): Promise<SessionHistoryDto[]> {
+    const rows = await sessionStorage.listClosedSessionsWithItems(userId, date);
     return rows.map((row) => this.mapHistoryRow(row));
   }
 }

@@ -153,6 +153,14 @@ class CustomerService {
     return { customer: updated, discountRate };
   }
 
+  async lookupByPhone(userId: string, phone: string): Promise<{ customer: Customer; thresholdSeconds: number } | null> {
+    const normalized = normalizePhoneNumber(phone);
+    const customer = await customerStorage.getCustomerByPhoneNumber(userId, normalized);
+    if (!customer) return null;
+    const thresholdSeconds = await this.getDiscountThresholdSeconds(userId);
+    return { customer, thresholdSeconds };
+  }
+
   async updateTotalSeconds(userId: string, customerId: string, seconds: number): Promise<Customer> {
     const updated = await customerStorage.updateTotalSeconds(userId, customerId, seconds);
     if (!updated) throw new CustomerNotFoundError("Customer not found");

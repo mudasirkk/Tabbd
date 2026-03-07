@@ -11,12 +11,14 @@ import {
   type SessionTimeSegment,
 } from "@shared/schema";
 import { db } from "../db";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
+
+export type SessionItemWithCategory = SessionItem & { category: string | null };
 
 export type ClosedSessionHistoryRow = Session & {
   stationName: string;
   stationType: string;
-  items: SessionItem[];
+  items: SessionItemWithCategory[];
   timeSegments: SessionTimeSegment[];
 };
 
@@ -557,7 +559,18 @@ class SessionStorage {
     });
   }
 
-  async listClosedSessionsWithItems(userId: string): Promise<ClosedSessionHistoryRow[]> {
+  async listClosedSessionsWithItems(userId: string, date?: string): Promise<ClosedSessionHistoryRow[]> {
+    const conditions: ReturnType<typeof eq>[] = [
+      eq(sessions.userId, userId) as any,
+      eq(sessions.status, "closed") as any,
+    ];
+    if (date) {
+      const from = new Date(date + "T00:00:00Z");
+      const to = new Date(date + "T23:59:59.999Z");
+      conditions.push(gte(sessions.closedAt, from) as any);
+      conditions.push(lte(sessions.closedAt, to) as any);
+    }
+
     const closed = await db
       .select({
         id: sessions.id,
@@ -578,15 +591,25 @@ class SessionStorage {
       })
       .from(sessions)
       .innerJoin(stations, and(eq(stations.id, sessions.stationId), eq(stations.userId, userId)))
-      .where(and(eq(sessions.userId, userId), eq(sessions.status, "closed")))
+      .where(and(...conditions))
       .orderBy(desc(sessions.closedAt), desc(sessions.createdAt));
 
     if (closed.length === 0) return [];
 
     const sessionIds = closed.map((row) => row.id);
     const allItems = await db
-      .select()
+      .select({
+        id: sessionItems.id,
+        sessionId: sessionItems.sessionId,
+        menuItemId: sessionItems.menuItemId,
+        nameSnapshot: sessionItems.nameSnapshot,
+        priceSnapshot: sessionItems.priceSnapshot,
+        qty: sessionItems.qty,
+        createdAt: sessionItems.createdAt,
+        category: menuItems.category,
+      })
       .from(sessionItems)
+      .leftJoin(menuItems, eq(sessionItems.menuItemId, menuItems.id))
       .where(inArray(sessionItems.sessionId, sessionIds))
       .orderBy(asc(sessionItems.createdAt));
 
@@ -596,10 +619,10 @@ class SessionStorage {
       .where(inArray(sessionTimeSegments.sessionId, sessionIds))
       .orderBy(asc(sessionTimeSegments.sequence), asc(sessionTimeSegments.createdAt));
 
-    const itemsBySession = new Map<string, SessionItem[]>();
+    const itemsBySession = new Map<string, SessionItemWithCategory[]>();
     for (const row of allItems) {
       const existing = itemsBySession.get(row.sessionId) ?? [];
-      existing.push(row);
+      existing.push({ ...row, category: row.category ?? null });
       itemsBySession.set(row.sessionId, existing);
     }
 

@@ -4,7 +4,9 @@ import { useAuthReady } from "@/lib/useAuthReady";
 import { fetchWithAuth } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useTheme } from "@/hooks/useTheme";
+import { Moon, Sun, ArrowLeft, Clock } from "lucide-react";
 
 interface SessionHistoryItem {
   id: string;
@@ -14,6 +16,7 @@ interface SessionHistoryItem {
   qty: number;
   lineTotal: number;
   createdAt: string;
+  category: string | null;
 }
 
 interface SessionHistoryTimeSegment {
@@ -50,7 +53,6 @@ interface SessionHistoryRow {
 
 function formatDateTime(input: string): string {
   return new Date(input).toLocaleString("en-US", {
-    year: "numeric",
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -72,7 +74,12 @@ function formatMoney(amount: number): string {
 
 export default function HistoryPage() {
   const { ready: authReady, user } = useAuthReady();
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const { theme, toggleTheme } = useTheme();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [itemsDrawer, setItemsDrawer] = useState<string | null>(null);
+  const [timeDrawer, setTimeDrawer] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authReady) return;
@@ -80,12 +87,11 @@ export default function HistoryPage() {
   }, [authReady, user]);
 
   const { data, isLoading, error } = useQuery<SessionHistoryRow[]>({
-    queryKey: ["session-history"],
-    queryFn: () => fetchWithAuth<SessionHistoryRow[]>("/api/sessions/history"),
+    queryKey: ["session-history", selectedDate],
+    queryFn: () => fetchWithAuth<SessionHistoryRow[]>(`/api/sessions/history?date=${selectedDate}`),
     retry: false,
     enabled: authReady && !!user,
     refetchOnWindowFocus: true,
-    refetchInterval: 15000,
   });
 
   const rows = useMemo(() => data ?? [], [data]);
@@ -129,122 +135,188 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 bg-background z-10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Session History</h1>
-            <p className="text-sm text-muted-foreground">Previously checked out sessions</p>
+      <header className="border-b border-border/50 sticky top-0 bg-background/90 backdrop-blur-sm z-10">
+        <div className="container mx-auto max-w-screen-xl px-4 py-3 flex justify-between items-center gap-4">
+          <h1 className="text-3xl font-bold font-display leading-tight">History</h1>
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <input
+              type="date"
+              value={selectedDate}
+              max={today}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.location.assign("/dashboard")}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              Dashboard
+            </Button>
           </div>
-          <Button variant="outline" onClick={() => window.location.assign("/dashboard")}>
-            Back to Dashboard
-          </Button>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto max-w-screen-xl px-4 py-6">
         {rows.length === 0 ? (
-          <Card className="p-8 text-center text-muted-foreground">
-            No checked out sessions yet.
-          </Card>
+          <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-12 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50">
+              <Clock className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <p className="font-medium text-foreground/60">No sessions closed on this date</p>
+            <p className="mt-1 text-sm text-muted-foreground">Checked out sessions will appear here.</p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {rows.map((row) => {
-              const isOpen = !!expanded[row.id];
-              return (
-                <Card key={row.id} className="p-5 space-y-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-lg font-semibold">{row.stationName}</h2>
-                      <p className="text-sm text-muted-foreground">
-                        {row.stationType} | {row.pricingTier === "solo" ? "Solo" : "Group"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Grand Total</div>
-                      <div className="text-xl font-mono font-semibold">{formatMoney(row.grandTotal)}</div>
+            {rows.map((row) => (
+              <Card key={row.id} className="border-t-2 border-t-primary/40 p-5 space-y-3">
+                {/* Header */}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-bold font-display leading-tight">{row.stationName}</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wide">
+                      {row.stationType} &middot; {row.pricingTier === "solo" ? "Solo" : "Group"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">
+                      Grand Total
+                    </p>
+                    <div className="text-2xl font-mono font-bold text-primary">
+                      {formatMoney(row.grandTotal)}
                     </div>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                    <div>
-                      <div className="text-muted-foreground">Started</div>
-                      <div>{formatDateTime(row.startedAt)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Checked Out</div>
-                      <div>{formatDateTime(row.closedAt)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Duration</div>
-                      <div className="font-mono">{formatDuration(row.effectiveSeconds)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Items</div>
-                      <div>{row.itemCount}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Time Charge</div>
-                      <div className="font-mono">{formatMoney(row.timeCharge)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Items Subtotal</div>
-                      <div className="font-mono">{formatMoney(row.itemsSubtotal)}</div>
-                    </div>
+                {/* Condensed info */}
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wide mr-1">Started</span>
+                    {formatDateTime(row.startedAt)}
                   </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Time Segments</div>
-                    {row.timeSegments.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No transfer segments recorded.</p>
-                    ) : (
-                      row.timeSegments.map((segment) => (
-                        <div key={segment.id} className="flex items-center justify-between text-sm border rounded-md p-2">
-                          <span>
-                            {segment.sequence}. {segment.stationName} ({segment.pricingTier === "solo" ? "Solo" : "Group"}) - {formatDuration(segment.effectiveSeconds)}
-                          </span>
-                          <span className="font-mono">
-                            ${segment.rateHourlyApplied.toFixed(2)}/hr | {formatMoney(segment.timeAmount)}
-                          </span>
-                        </div>
-                      ))
-                    )}
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wide mr-1">Closed</span>
+                    {formatDateTime(row.closedAt)}
                   </div>
-
-                  <Separator />
-
-                  <div className="flex justify-between items-center gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => setExpanded((prev) => ({ ...prev, [row.id]: !isOpen }))}
-                    >
-                      {isOpen ? "Hide Items" : "Show Items"}
-                    </Button>
-                    <span className="text-xs text-muted-foreground">Session ID: {row.id}</span>
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wide mr-1">Duration</span>
+                    <span className="font-mono">{formatDuration(row.effectiveSeconds)}</span>
                   </div>
+                </div>
 
-                  {isOpen ? (
-                    <div className="space-y-2">
+                {/* Drawer buttons */}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setItemsDrawer(row.id)}>
+                    Items — {formatMoney(row.itemsSubtotal)}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setTimeDrawer(row.id)}>
+                    Time — {formatMoney(row.timeCharge)}
+                  </Button>
+                </div>
+
+                {/* Items drawer */}
+                <Sheet open={itemsDrawer === row.id} onOpenChange={(o) => !o && setItemsDrawer(null)}>
+                  <SheetContent className="flex flex-col">
+                    <SheetHeader className="shrink-0">
+                      <SheetTitle>Items — {row.stationName}</SheetTitle>
+                      <SheetDescription>Menu items added during this session.</SheetDescription>
+                    </SheetHeader>
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-4 pr-1">
                       {row.items.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No items were added to this session.</p>
                       ) : (
-                        row.items.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-sm border rounded-md p-2">
-                            <span>
-                              {item.qty}x {item.nameSnapshot}
+                        (() => {
+                          const groups = new Map<string, SessionHistoryItem[]>();
+                          for (const item of row.items) {
+                            const cat = (item.category ?? "").trim() || "Miscellaneous";
+                            const arr = groups.get(cat) ?? [];
+                            arr.push(item);
+                            groups.set(cat, arr);
+                          }
+                          const categories = Array.from(groups.keys()).sort((a, b) => {
+                            if (a === "Miscellaneous") return 1;
+                            if (b === "Miscellaneous") return -1;
+                            return a.localeCompare(b);
+                          });
+                          return categories.map((cat) => (
+                            <div key={cat} className="mb-3">
+                              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
+                                {cat}
+                              </p>
+                              <div className="space-y-1.5">
+                                {(groups.get(cat) ?? [])
+                                  .slice()
+                                  .sort((a, b) => a.nameSnapshot.localeCompare(b.nameSnapshot))
+                                  .map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="flex items-center justify-between text-sm border border-border/60 rounded-md px-3 py-2 bg-muted/20"
+                                    >
+                                      <span className="font-medium">
+                                        {item.qty}x {item.nameSnapshot}
+                                      </span>
+                                      <span className="font-mono text-muted-foreground">
+                                        {formatMoney(item.priceSnapshot)} each &middot;{" "}
+                                        <span className="text-foreground/80">{formatMoney(item.lineTotal)}</span>
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          ));
+                        })()
+                      )}
+                    </div>
+                    <div className="flex justify-between pt-3 border-t font-medium shrink-0">
+                      <span>Subtotal</span>
+                      <span className="font-mono">{formatMoney(row.itemsSubtotal)}</span>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+
+                {/* Time drawer */}
+                <Sheet open={timeDrawer === row.id} onOpenChange={(o) => !o && setTimeDrawer(null)}>
+                  <SheetContent className="flex flex-col">
+                    <SheetHeader className="shrink-0">
+                      <SheetTitle>Time — {row.stationName}</SheetTitle>
+                      <SheetDescription>Time segments and charges for this session.</SheetDescription>
+                    </SheetHeader>
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-4 space-y-1.5 pr-1">
+                      {row.timeSegments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No transfer segments recorded.</p>
+                      ) : (
+                        row.timeSegments.map((segment) => (
+                          <div
+                            key={segment.id}
+                            className="flex items-center justify-between text-xs border border-border/60 rounded-md px-3 py-2 bg-muted/20"
+                          >
+                            <span className="text-foreground/80">
+                              {segment.sequence}. {segment.stationName}{" "}
+                              <span className="text-muted-foreground">
+                                ({segment.pricingTier === "solo" ? "Solo" : "Group"}) &middot; {formatDuration(segment.effectiveSeconds)}
+                              </span>
                             </span>
-                            <span className="font-mono">
-                              {formatMoney(item.priceSnapshot)} each | {formatMoney(item.lineTotal)}
+                            <span className="font-mono text-muted-foreground">
+                              ${segment.rateHourlyApplied.toFixed(2)}/hr &middot;{" "}
+                              <span className="text-foreground/80">{formatMoney(segment.timeAmount)}</span>
                             </span>
                           </div>
                         ))
                       )}
                     </div>
-                  ) : null}
-                </Card>
-              );
-            })}
+                    <div className="flex justify-between pt-3 border-t font-medium shrink-0">
+                      <span>Time Charge</span>
+                      <span className="font-mono">{formatMoney(row.timeCharge)}</span>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </Card>
+            ))}
           </div>
         )}
       </main>

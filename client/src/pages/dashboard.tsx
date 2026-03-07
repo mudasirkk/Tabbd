@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
-import { Clock, LogOut, Hamburger, Settings as SettingsIcon, History as HistoryIcon, Lock, Unlock } from "lucide-react";
+import { Clock, LogOut, Hamburger, Settings as SettingsIcon, History as HistoryIcon, Lock, Unlock, Moon, Sun, Search } from "lucide-react";
+import { useTheme } from "@/hooks/useTheme";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
@@ -24,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EditStationDialog } from "@/components/EditStationDialog";
+import { LoyaltyLookupDialog } from "@/components/LoyaltyLookupDialog";
 import {
   Dialog,
   DialogContent,
@@ -143,6 +145,7 @@ export default function Dashboard() {
   const { ready: authReady, user } = useAuthReady();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { theme, toggleTheme } = useTheme();
 
   const[now, setNow] = useState(Date.now());
 
@@ -171,6 +174,7 @@ export default function Dashboard() {
   const [editStationOpen, setEditStationOpen] = useState(false);
   const [stationToEdit, setStationToEdit] = useState<ApiStation | null>(null);
 
+  const [loyaltyOpen, setLoyaltyOpen] = useState(false);
   const [removeItemOpen, setRemoveItemOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<SessionItem | null>(null);
   const [removeQty, setRemoveQty] = useState<number>(1);
@@ -666,53 +670,65 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 bg-background z-10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <header className="border-b border-border/50 sticky top-0 bg-background/90 backdrop-blur-sm z-10">
+        <div className="container mx-auto max-w-screen-xl px-4 py-3 flex justify-between items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{me?.storeName ?? "Tabb'd"}</h1>
-            <p className="text-sm text-muted-foreground">
-              Station & Tab Dashboard
-            </p>
+            <h1 className="text-3xl font-bold font-display leading-tight">
+              {me?.storeName ?? "Tabb'd"}
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Button variant="outline" onClick={() => window.location.assign("/menu")}>
-              <Hamburger className="w-4 h-4 mr-2" />
-              Menu
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button variant="outline" size="sm" onClick={() => setLoyaltyOpen(true)}>
+              <Search className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Lookup</span>
             </Button>
-            <Button variant="outline" onClick={() => window.location.assign("/history")}>
-              <HistoryIcon className="w-4 h-4 mr-2" />
-              History
+            <Button variant="outline" size="sm" onClick={() => window.location.assign("/menu")}>
+              <Hamburger className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Menu</span>
             </Button>
-            <Button variant="outline" onClick={() => window.location.assign("/settings")}>
-              <SettingsIcon className="w-4 h-4 mr-2" />
-              Settings
+            <Button variant="outline" size="sm" onClick={() => window.location.assign("/history")}>
+              <HistoryIcon className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">History</span>
             </Button>
-            <Button variant="destructive" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Log out
+            <Button variant="outline" size="sm" onClick={() => window.location.assign("/settings")}>
+              <SettingsIcon className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Settings</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Log out</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto max-w-screen-xl px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Stations grid*/}
           <div className="lg:col-span-2">
 
-            {/*Add Station Button*/}
-            <div className="flex gap-2 mb-4">
-              <Button onClick={() => setSetupStationOpen(true)} disabled={creatingStation}>
-                Add Station
-              </Button>
-            </div>
-
-
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">All Stations</h2>
+            {/* Controls row: Add Station + Lock/Unlock */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  All Stations
+                </h2>
+                <Button size="sm" onClick={() => setSetupStationOpen(true)} disabled={creatingStation}>
+                  Add Station
+                </Button>
+              </div>
               <Button
                 variant={isDragUnlocked ? "default" : "outline"}
+                size="sm"
                 onClick={() => setIsDragUnlocked((prev) => !prev)}
                 disabled={reorderingStations}
                 data-testid="button-toggle-station-order-lock"
@@ -730,7 +746,7 @@ export default function Dashboard() {
                 )}
               </Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {orderedStations.map((st) => {
                 const session = st.activeSession;
                 const isActive = !!session && session.status !== "closed";
@@ -843,10 +859,13 @@ export default function Dashboard() {
                 />
               </div>
             ) : (
-              <div className="sticky top-24 border-2 border-dashed rounded-lg p-8 text-center">
-                <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  Select an active station to view details
+              <div className="sticky top-24 rounded-lg border border-dashed border-border/60 bg-card/30 p-10 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50">
+                  <Clock className="w-7 h-7 text-muted-foreground" />
+                </div>
+                <p className="font-medium text-foreground/60">No active session selected</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Start or click an active station to view details here
                 </p>
               </div>
             )}
@@ -1009,6 +1028,8 @@ export default function Dashboard() {
       ) : null}
 
       
+
+      <LoyaltyLookupDialog open={loyaltyOpen} onOpenChange={setLoyaltyOpen} />
 
       <PaymentProcessingOverlay
         show={showPaymentProcessing}

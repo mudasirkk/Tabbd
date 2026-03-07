@@ -108,9 +108,12 @@ export async function removeSessionItem(req: Request, res: Response) {
 export async function getSessionHistory(req: Request, res: Response) {
   try {
     const uid = getUserId(req);
-    const history = await sessionService.listHistory(uid);
+    const querySchema = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
+    const { date } = querySchema.parse(req.query);
+    const history = await sessionService.listHistory(uid, date);
     res.json(history);
   } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
     const { status, message } = toHttpError(err);
     return res.status(status).json({ error: message });
   }

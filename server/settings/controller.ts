@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import {
   updateDiscountSettingsSchema,
+  updateLogoSchema,
   upsertProfileSchema,
 } from "@shared/schema";
 import { getUserId } from "../middleware/auth";
@@ -35,6 +36,21 @@ export async function updateProfile(req: Request, res: Response) {
     }
     console.error("[PROFILE] Error:", err);
     res.status(500).json({ error: "Failed to update profile" });
+  }
+}
+
+export async function updateLogo(req: Request, res: Response) {
+  try {
+    const uid = getUserId(req);
+    const { logoDataUrl } = updateLogoSchema.parse(req.body);
+    await settingsService.updateLogo(uid, logoDataUrl);
+    res.json({ logoDataUrl });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.flatten() });
+    }
+    console.error("[LOGO] Error:", err);
+    res.status(500).json({ error: "Failed to update logo" });
   }
 }
 

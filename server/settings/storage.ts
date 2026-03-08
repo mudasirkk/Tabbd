@@ -56,6 +56,15 @@ export class SettingsStorage {
       .returning();
     return row ?? undefined;
   }
+
+  async updateLogo(userId: string, logoDataUrl: string | null): Promise<User | undefined> {
+    const [row] = await db
+      .update(users)
+      .set({ logoDataUrl, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return row ?? undefined;
+  }
 }
 
 export const settingsStorage = new SettingsStorage();

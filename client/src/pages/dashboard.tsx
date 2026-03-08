@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuthReady } from "@/lib/useAuthReady";
-import { Clock, LogOut, Hamburger, Settings as SettingsIcon, History as HistoryIcon, Lock, Unlock, Moon, Sun, Search } from "lucide-react";
+import { Clock, Lock, Unlock } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { TransferSessionDialog } from "@/components/TransferSessionDialog";
 import { PaymentProcessingOverlay } from "@/components/PaymentProcessingOverlay";
+import { SummaryNavbar } from "@/components/SummaryNavbar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { fetchWithAuth, postWithAuth, patchWithAuth, deleteWithAuth } from "@/lib/api";
@@ -44,6 +45,7 @@ interface MeResponse {
   uid: string;
   email: string | null;
   storeName: string | null;
+  logoDataUrl: string | null;
 }
 
 interface ApiSessionItem {
@@ -183,6 +185,7 @@ export default function Dashboard() {
   const [dragOverStationId, setDragOverStationId] = useState<string | null>(null);
   const [reorderingStations, setReorderingStations] = useState(false);
   const [localStationOrder, setLocalStationOrder] = useState<string[] | null>(null);
+  const autoPausedSessionIdRef = useRef<string | null>(null);
 
 
   useEffect(() => {
@@ -263,7 +266,14 @@ export default function Dashboard() {
   }, [localStationOrder, stations]);
 
   const activeStationsCount = activeStations.length;
-  
+  const pausedStations = useMemo(
+    () => activeStations.filter((s) => s.activeSession?.status === "paused"),
+    [activeStations]
+  );
+  const totalStations = (stations ?? []).length;
+  const openCount = totalStations - activeStationsCount;
+  const pausedCount = pausedStations.length;
+
   function getCurrentSegmentElapsedForStation(st: ApiStation): number {
     if (!st.activeSession) return 0;
     return computeElapsedSeconds(st.activeSession, now);
@@ -474,7 +484,23 @@ export default function Dashboard() {
       });
     }
   }
-  
+
+  async function openCheckoutWithAutoPause(st: ApiStation) {
+    const session = st.activeSession;
+    if (!session) return;
+    if (session.status === "active") {
+      try {
+        await postWithAuth(`/api/sessions/${session.id}/pause`);
+        autoPausedSessionIdRef.current = session.id;
+        await qc.invalidateQueries({ queryKey: ["stations"] });
+      } catch {
+        autoPausedSessionIdRef.current = null;
+      }
+    } else {
+      autoPausedSessionIdRef.current = null;
+    }
+    setCheckoutOpen(true);
+  }
 
   async function handleCheckoutConfirm(
     st: ApiStation,
@@ -486,6 +512,7 @@ export default function Dashboard() {
     }
   ) {
     if (!st.activeSession) return;
+    autoPausedSessionIdRef.current = null;
     const { pricingTier, currentSegmentPricingTier, segmentTierOverrides, grandTotal } = payload;
 
     try {
@@ -670,46 +697,20 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border/50 sticky top-0 bg-background/90 backdrop-blur-sm z-10">
-        <div className="container mx-auto max-w-screen-xl px-4 py-3 flex justify-between items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold font-display leading-tight">
-              {me?.storeName ?? "Tabb'd"}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Button variant="outline" size="sm" onClick={() => setLoyaltyOpen(true)}>
-              <Search className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Lookup</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => window.location.assign("/menu")}>
-              <Hamburger className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Menu</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => window.location.assign("/history")}>
-              <HistoryIcon className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">History</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => window.location.assign("/settings")}>
-              <SettingsIcon className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Settings</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={toggleTheme}
-              aria-label="Toggle theme"
-            >
-              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Log out</span>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <SummaryNavbar
+        storeName={me?.storeName ?? "Tabb'd"}
+        logoUrl={me?.logoDataUrl ?? null}
+        activeCount={activeStationsCount}
+        openCount={openCount}
+        pausedCount={pausedCount}
+        onLookup={() => setLoyaltyOpen(true)}
+        onMenu={() => window.location.assign("/menu")}
+        onHistory={() => window.location.assign("/history")}
+        onSettings={() => window.location.assign("/settings")}
+        onLogout={handleLogout}
+        onToggleTheme={toggleTheme}
+        theme={theme}
+      />
 
       <main className="container mx-auto max-w-screen-xl px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -776,7 +777,7 @@ export default function Dashboard() {
                     onResume={() => handleResume(st)}
                     onCompletePayment={() => {
                       setSelectedStationId(st.id);
-                      setCheckoutOpen(true);
+                      openCheckoutWithAutoPause(st);
                     }}
                     onClick={() => isActive && setSelectedStationId(st.id)}
                     dragEnabled={isDragUnlocked}
@@ -853,7 +854,7 @@ export default function Dashboard() {
                   currentSegmentCharge={getCurrentSegmentChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
                   items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
                   onAddItems={() => setAddItemsOpen(true)}
-                  onCheckout={() => setCheckoutOpen(true)}
+                  onCheckout={() => { if (selectedStation) openCheckoutWithAutoPause(selectedStation); }}
                   onTransfer={() => setTransferOpen(true)}
                   onRequestRemoveItem={openRemoveItemDialog}
                 />
@@ -927,7 +928,21 @@ export default function Dashboard() {
 
         <CheckoutDialog
             open={checkoutOpen}
-            onOpenChange={setCheckoutOpen}
+            onOpenChange={async (open) => {
+              if (!open) {
+                const pausedId = autoPausedSessionIdRef.current;
+                autoPausedSessionIdRef.current = null;
+                if (pausedId) {
+                  try {
+                    await postWithAuth(`/api/sessions/${pausedId}/resume`);
+                    await qc.invalidateQueries({ queryKey: ["stations"] });
+                  } catch {
+                    // Session may have been closed or state changed
+                  }
+                }
+              }
+              setCheckoutOpen(open);
+            }}
             sessionId={selectedStation.activeSession.id}
             stationName={selectedStation.name}
             activeSessions={activeCheckoutSessions}

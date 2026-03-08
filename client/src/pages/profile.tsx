@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthReady } from "@/lib/useAuthReady";
 import { fetchWithAuth, patchWithAuth, postWithAuth } from "@/lib/api";
@@ -7,12 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/hooks/useTheme";
-import { Moon, Sun, ArrowLeft } from "lucide-react";
+import { Moon, Sun, ArrowLeft, Upload, X } from "lucide-react";
 
 interface MeResponse {
   uid: string;
   email: string | null;
   storeName: string | null;
+  logoDataUrl: string | null;
   discountThresholdSeconds: number;
   discountRate: string;
 }
@@ -38,9 +39,16 @@ export default function ProfilePage() {
   const [storeName, setStoreName] = useState("");
   const [discountThresholdHours, setDiscountThresholdHours] = useState("");
   const [discountRatePct, setDiscountRatePct] = useState("");
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoSaving, setLogoSaving] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (me) setStoreName(me.storeName ?? "");
+  }, [me]);
+
+  useEffect(() => {
+    if (me) setLogoPreview(me.logoDataUrl ?? null);
   }, [me]);
   useEffect(() => {
     if (me != null) {
@@ -68,6 +76,55 @@ export default function ProfilePage() {
       });
     }
   }
+
+  function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 200 * 1024) {
+      toast({ title: "File too large", description: "Logo must be under 200KB.", variant: "destructive" });
+      return;
+    }
+    if (!file.type.match(/^image\/(png|jpeg|svg\+xml|webp)$/)) {
+      toast({ title: "Invalid file type", description: "Use PNG, JPEG, SVG, or WebP.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    // reset input so the same file can be re-selected
+    e.target.value = "";
+  }
+
+  async function saveLogo() {
+    setLogoSaving(true);
+    try {
+      await patchWithAuth("/api/profile/logo", { logoDataUrl: logoPreview });
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast({ title: "Logo saved" });
+    } catch (e: any) {
+      toast({ title: "Failed to save logo", description: e?.message ?? "Please try again", variant: "destructive" });
+    } finally {
+      setLogoSaving(false);
+    }
+  }
+
+  async function removeLogo() {
+    setLogoPreview(null);
+    setLogoSaving(true);
+    try {
+      await patchWithAuth("/api/profile/logo", { logoDataUrl: null });
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast({ title: "Logo removed" });
+    } catch (e: any) {
+      toast({ title: "Failed to remove logo", description: e?.message ?? "Please try again", variant: "destructive" });
+    } finally {
+      setLogoSaving(false);
+    }
+  }
+
+  const logoChanged = logoPreview !== (me?.logoDataUrl ?? null);
 
   async function saveLoyalty() {
     const hours = Number(discountThresholdHours);
@@ -186,6 +243,60 @@ export default function ProfilePage() {
                 </Button>
                 <Button onClick={save}>Save</Button>
               </div>
+            </div>
+
+            <div className="border-t border-border/50 pt-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Store Logo
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Displayed in the dashboard navbar. Max 200KB.
+              </p>
+              <div className="flex items-center gap-4">
+                {logoPreview ? (
+                  <img
+                    src={logoPreview}
+                    alt="Logo preview"
+                    className="h-16 w-16 rounded-lg object-cover border border-border/60"
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-lg border-2 border-dashed border-border/60 flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    className="hidden"
+                    onChange={handleLogoFileChange}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    Choose File
+                  </Button>
+                  {logoPreview && (
+                    <button
+                      type="button"
+                      className="text-xs text-destructive hover:underline flex items-center gap-1"
+                      onClick={removeLogo}
+                    >
+                      <X className="w-3 h-3" /> Remove logo
+                    </button>
+                  )}
+                </div>
+              </div>
+              {logoChanged && (
+                <div className="flex justify-end pt-1">
+                  <Button onClick={saveLogo} disabled={logoSaving}>
+                    {logoSaving ? "Saving…" : "Save Logo"}
+                  </Button>
+                </div>
+              )}
             </div>
           </Card>
 

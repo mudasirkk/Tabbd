@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey(),
   email: text("email"),
   storeName: text("store_name"),
+  logoDataUrl: text("logo_data_url"),
   discountThresholdSeconds: integer("discount_threshold_seconds").notNull().default(20 * 3600),
   discountRate: decimal("discount_rate", { precision: 5, scale: 4 }).notNull().default("0.2"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
@@ -129,6 +130,14 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const upsertProfileSchema = z.object({
   storeName: z.string().min(1).max(120),
+});
+
+export const updateLogoSchema = z.object({
+  logoDataUrl: z
+    .string()
+    .max(300_000)
+    .regex(/^data:image\/(png|jpeg|jpg|svg\+xml|webp);base64,.+/)
+    .nullable(),
 });
 
 /** Body for POST /api/settings: threshold in hours (converted to seconds on server), rate 0–1 */

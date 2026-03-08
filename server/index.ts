@@ -8,7 +8,7 @@ console.log("BOOT: starting server");
 const app = express();
 app.set("trust proxy", 1);
 
-app.use(express.json());
+app.use(express.json({ limit: "500kb" }));
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {

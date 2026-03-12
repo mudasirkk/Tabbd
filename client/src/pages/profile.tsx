@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/hooks/useTheme";
-import { Moon, Sun, ArrowLeft, Upload, X } from "lucide-react";
+import { Moon, Sun, ArrowLeft, Upload, X, Link2, Unlink, RefreshCw, Upload as UploadIcon } from "lucide-react";
+import CloverSyncDialog from "@/components/CloverSyncDialog";
+import CloverPushDialog from "@/components/CloverPushDialog";
 
 interface MeResponse {
   uid: string;
@@ -16,6 +18,8 @@ interface MeResponse {
   logoDataUrl: string | null;
   discountThresholdSeconds: number;
   discountRate: string;
+  cloverMerchantId: string | null;
+  cloverConnectedAt: string | null;
 }
 
 export default function ProfilePage() {
@@ -42,6 +46,8 @@ export default function ProfilePage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoSaving, setLogoSaving] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [pushOpen, setPushOpen] = useState(false);
 
   useEffect(() => {
     if (me) setStoreName(me.storeName ?? "");
@@ -57,6 +63,35 @@ export default function ProfilePage() {
       setDiscountRatePct(Number.isNaN(rateNum) ? "" : String(Math.round(rateNum * 100)));
     }
   }, [me]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("clover") === "connected") {
+      toast({ title: "Clover connected", description: "Your Clover account has been linked." });
+      window.history.replaceState({}, "", window.location.pathname);
+      qc.invalidateQueries({ queryKey: ["me"] });
+    }
+  }, []);
+
+  async function connectClover() {
+    try {
+      const data = await fetchWithAuth<{ url: string }>("/api/clover/auth-url");
+      window.location.href = data.url;
+    } catch (e: any) {
+      toast({ title: "Failed to start Clover connection", description: e?.message, variant: "destructive" });
+    }
+  }
+
+  async function disconnectClover() {
+    if (!confirm("Disconnect Clover? This will remove the integration but keep your menu items.")) return;
+    try {
+      await postWithAuth("/api/clover/disconnect");
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      toast({ title: "Clover disconnected" });
+    } catch (e: any) {
+      toast({ title: "Failed to disconnect", description: e?.message, variant: "destructive" });
+    }
+  }
 
   async function save() {
     const trimmed = storeName.trim();
@@ -303,6 +338,59 @@ export default function ProfilePage() {
           <Card className="p-6 space-y-5">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
+                Integrations
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Connect external services to sync your menu.
+              </p>
+            </div>
+
+            <div className="border-t border-border/50 pt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Clover POS</p>
+                  {me?.cloverMerchantId ? (
+                    <p className="text-xs text-muted-foreground">
+                      Connected to merchant {me.cloverMerchantId}
+                      {me.cloverConnectedAt && (
+                        <> since {new Date(me.cloverConnectedAt).toLocaleDateString()}</>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Not connected</p>
+                  )}
+                </div>
+                {me?.cloverMerchantId ? (
+                  <Button variant="outline" size="sm" onClick={disconnectClover}>
+                    <Unlink className="w-4 h-4 mr-1.5" />
+                    Disconnect
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={connectClover}>
+                    <Link2 className="w-4 h-4 mr-1.5" />
+                    Connect Clover
+                  </Button>
+                )}
+              </div>
+
+              {me?.cloverMerchantId && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setSyncOpen(true)}>
+                    <RefreshCw className="w-4 h-4 mr-1.5" />
+                    Import / Sync from Clover
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setPushOpen(true)}>
+                    <UploadIcon className="w-4 h-4 mr-1.5" />
+                    Push to Clover
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-6 space-y-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
                 Loyalty Program
               </p>
               <p className="text-sm text-muted-foreground">
@@ -360,6 +448,9 @@ export default function ProfilePage() {
 
         </div>
       </main>
+
+      <CloverSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />
+      <CloverPushDialog open={pushOpen} onOpenChange={setPushOpen} />
     </div>
   );
 }

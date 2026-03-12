@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export interface MenuItem {
   id: string;
@@ -20,6 +21,13 @@ export interface MenuItem {
   description?: string | null;
   stockQty?: number;
   isActive?: boolean;
+  isVariablePrice?: boolean;
+}
+
+export interface VariableItemEntry {
+  menuItemId: string;
+  customName: string;
+  customPrice: string;
 }
 
 interface AddItemsDialogProps {
@@ -31,6 +39,9 @@ interface AddItemsDialogProps {
   onAddItem: (itemId: string) => void;
   onRemoveItem: (itemId: string) => void;
   onConfirm: () => void;
+  variableItems?: VariableItemEntry[];
+  onAddVariableItem?: (item: VariableItemEntry) => void;
+  onRemoveVariableItem?: (index: number) => void;
 }
 
 export function AddItemsDialog({
@@ -42,10 +53,19 @@ export function AddItemsDialog({
   onAddItem,
   onRemoveItem,
   onConfirm,
+  variableItems = [],
+  onAddVariableItem,
+  onRemoveVariableItem,
 }: AddItemsDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [variableModalOpen, setVariableModalOpen] = useState(false);
+  const [variableTarget, setVariableTarget] = useState<MenuItem | null>(null);
+  const [variableCustomName, setVariableCustomName] = useState("");
+  const [variableCustomPrice, setVariableCustomPrice] = useState("");
 
   const totalItems = Object.values(selectedItems).reduce((sum, count) => sum + count, 0);
+  const variableItemCount = variableItems.length;
+  const totalItemsCount = totalItems + variableItemCount;
 
   const groupedMenu = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -81,7 +101,11 @@ export function AddItemsDialog({
 
 
   function handleOpenChange(o: boolean) {
-    if (!o) setSearchQuery("");
+    if (!o) {
+      setSearchQuery("");
+      setVariableModalOpen(false);
+      setVariableTarget(null);
+    }
     onOpenChange(o);
   }
 
@@ -119,16 +143,29 @@ export function AddItemsDialog({
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {group.items.map((item) => {
+                    const isVariable = !!item.isVariablePrice;
                     const stock = item.stockQty ?? 0;
                     const selectedQty = selectedItems[item.id] ?? 0;
-                    const outOfStock = stock <= 0;
-                    const atLimit = selectedQty >= stock && stock > 0;
+                    const variableCount = variableItems.filter((vi) => vi.menuItemId === item.id).length;
+                    const outOfStock = !isVariable && stock <= 0;
+                    const atLimit = !isVariable && selectedQty >= stock && stock > 0;
 
                     return (
                       <Card
                         key={item.id}
                         className={`p-3 hover-elevate cursor-pointer ${outOfStock ? "opacity-60 cursor-not-allowed" : ""}`}
                         onClick={() => {
+                          if (isVariable) {
+                            setVariableTarget(item);
+                            setVariableCustomName(item.name);
+                            setVariableCustomPrice(
+                              typeof item.price === "number"
+                                ? item.price.toFixed(2)
+                                : parseFloat(String(item.price)).toFixed(2)
+                            );
+                            setVariableModalOpen(true);
+                            return;
+                          }
                           if (outOfStock || atLimit) return;
                           onAddItem(item.id);
                         }}
@@ -139,9 +176,9 @@ export function AddItemsDialog({
                             <h4 className="font-medium text-sm leading-tight" data-testid={`text-item-name-${item.id}`}>
                               {item.name}
                             </h4>
-                            {selectedQty > 0 && (
+                            {(selectedQty > 0 || variableCount > 0) && (
                               <Badge variant="default" className="text-xs" data-testid={`badge-item-count-${item.id}`}>
-                                {selectedQty}
+                                {isVariable ? variableCount : selectedQty}
                               </Badge>
                             )}
                           </div>
@@ -155,11 +192,15 @@ export function AddItemsDialog({
                               ${typeof item.price === "number" ? item.price.toFixed(2) : parseFloat(String(item.price)).toFixed(2)}
                             </span>
 
-                            <span className="text-xs text-muted-foreground">
-                              Stock: <span className="font-medium">{stock}</span>
-                            </span>
+                            {isVariable ? (
+                              <span className="text-xs text-primary font-medium">Variable Price</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                Stock: <span className="font-medium">{stock}</span>
+                              </span>
+                            )}
 
-                            {selectedQty > 0 && (
+                            {!isVariable && selectedQty > 0 && (
                               <div className="flex items-center gap-1">
                                 <Button
                                   size="icon"
@@ -201,11 +242,31 @@ export function AddItemsDialog({
         </div>
       </div>
 
+        {variableItems.length > 0 && (
+          <div className="w-full space-y-1 pt-2 border-t">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Variable Items</p>
+            {variableItems.map((vi, index) => (
+              <div key={index} className="flex items-center justify-between text-sm bg-muted/30 rounded px-2 py-1">
+                <span className="truncate">{vi.customName} - ${parseFloat(vi.customPrice).toFixed(2)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  onClick={() => onRemoveVariableItem?.(index)}
+                  data-testid={`button-remove-variable-item-${index}`}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5 text-muted-foreground" />
             <span className="text-sm text-muted-foreground" data-testid="text-total-items">
-              {totalItems} {totalItems === 1 ? "item" : "items"} selected
+              {totalItemsCount} {totalItemsCount === 1 ? "item" : "items"} selected
             </span>
           </div>
           <Button onClick={onConfirm} data-testid="button-confirm-items">
@@ -213,6 +274,62 @@ export function AddItemsDialog({
           </Button>
         </div>
       </DialogContent>
+
+      <Dialog open={variableModalOpen} onOpenChange={setVariableModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Custom Item</DialogTitle>
+            <DialogDescription>
+              Set the name and price for this item.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="variable-item-name">Item Name</Label>
+              <Input
+                id="variable-item-name"
+                value={variableCustomName}
+                onChange={(e) => setVariableCustomName(e.target.value)}
+                placeholder="e.g., Chicken Biryani"
+                maxLength={200}
+                data-testid="input-variable-item-name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="variable-item-price">Price</Label>
+              <Input
+                id="variable-item-price"
+                value={variableCustomPrice}
+                onChange={(e) => setVariableCustomPrice(e.target.value)}
+                placeholder="0.00"
+                inputMode="decimal"
+                data-testid="input-variable-item-price"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setVariableModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const price = parseFloat(variableCustomPrice);
+                if (!variableCustomName.trim() || !Number.isFinite(price) || price <= 0) return;
+                onAddVariableItem?.({
+                  menuItemId: variableTarget!.id,
+                  customName: variableCustomName.trim(),
+                  customPrice: price.toFixed(2),
+                });
+                setVariableModalOpen(false);
+              }}
+              disabled={!variableCustomName.trim() || !Number.isFinite(parseFloat(variableCustomPrice)) || parseFloat(variableCustomPrice) <= 0}
+              data-testid="button-confirm-variable-item"
+            >
+              Add Item
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

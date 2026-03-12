@@ -41,6 +41,7 @@ export interface SessionHistoryDto {
   stationName: string;
   stationType: string;
   pricingTier: PricingTier;
+  customerName: string | null;
   startedAt: string;
   closedAt: string;
   totalPausedSeconds: number;
@@ -117,6 +118,7 @@ class SessionService {
       stationName: row.stationName,
       stationType: row.stationType,
       pricingTier: row.pricingTier,
+      customerName: row.customerName ?? null,
       startedAt: row.startedAt.toISOString(),
       closedAt: (row.closedAt ?? row.updatedAt).toISOString(),
       totalPausedSeconds: row.totalPausedSeconds ?? 0,
@@ -153,9 +155,15 @@ class SessionService {
     };
   }
 
-  async startSession(userId: string, stationId: string, pricingTier: PricingTier, startedAt: Date): Promise<Session> {
+  async updateSessionName(userId: string, sessionId: string, customerName: string | null): Promise<Session> {
+    const session = await sessionStorage.updateSessionName(userId, sessionId, customerName);
+    if (!session) throw new SessionNotFoundError("Session not found or already closed");
+    return session;
+  }
+
+  async startSession(userId: string, stationId: string, pricingTier: PricingTier, startedAt: Date, customerName?: string): Promise<Session> {
     try {
-      return await sessionStorage.startSession(userId, stationId, pricingTier, startedAt);
+      return await sessionStorage.startSession(userId, stationId, pricingTier, startedAt, customerName);
     } catch (err: any) {
       if (err?.message === "Station not found") throw new SessionNotFoundError("Station not found");
       throw err;
@@ -244,9 +252,14 @@ class SessionService {
     }
   }
 
-  async listHistory(userId: string, date?: string): Promise<SessionHistoryDto[]> {
+  async listHistory(userId: string, date?: string, search?: string): Promise<SessionHistoryDto[]> {
     const rows = await sessionStorage.listClosedSessionsWithItems(userId, date);
-    return rows.map((row) => this.mapHistoryRow(row));
+    let mapped = rows.map((row) => this.mapHistoryRow(row));
+    if (search) {
+      const q = search.toLowerCase();
+      mapped = mapped.filter((dto) => dto.customerName?.toLowerCase().includes(q));
+    }
+    return mapped;
   }
 }
 

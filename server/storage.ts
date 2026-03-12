@@ -22,6 +22,7 @@ export class DatabaseStorage {
         price: data.price,
         stockQty: data.stockQty ?? 0,
         isActive: data.isActive ?? true,
+        isVariablePrice: data.isVariablePrice ?? false,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

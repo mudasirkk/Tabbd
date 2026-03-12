@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { StationCard, StationType } from "@/components/StationCard";
 import { ActiveSessionPanel, SessionItem } from "@/components/ActiveSessionPanel";
 import { SetupStationDialog } from "@/components/SetupStationDialog";
-import { AddItemsDialog, MenuItem } from "@/components/AddItemsDialog";
+import { AddItemsDialog, MenuItem, VariableItemEntry } from "@/components/AddItemsDialog";
 import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { TransferSessionDialog } from "@/components/TransferSessionDialog";
@@ -62,6 +62,7 @@ interface ApiSession {
   id: string;
   userId: string;
   stationId: string;
+  customerName?: string | null;
   status: "active" | "paused" | "closed";
   startedAt: string;
   pausedAt: string | null;
@@ -168,6 +169,7 @@ export default function Dashboard() {
 
   //add-items local selection before confirm
   const [tempItems, setTempItems] = useState<Record<string, number>>({});
+  const [tempVariableItems, setTempVariableItems] = useState<VariableItemEntry[]>([]);
 
   // payment overlay (still optional UI)
   const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
@@ -320,22 +322,29 @@ export default function Dashboard() {
     if (!session) return;
 
     const entries = Object.entries(tempItems).filter(([, qty]) => qty > 0);
-    if (entries.length === 0) {
+    if (entries.length === 0 && tempVariableItems.length === 0) {
       setAddItemsOpen(false);
       return;
     }
 
     try {
-      // send items sequentially (simple + predictable). You can batch later if desired.
       for (const [menuItemId, qty] of entries) {
         await postWithAuth(`/api/sessions/${session.id}/items`, { menuItemId, qty });
+      }
+      for (const vi of tempVariableItems) {
+        await postWithAuth(`/api/sessions/${session.id}/items`, {
+          menuItemId: vi.menuItemId,
+          qty: 1,
+          customName: vi.customName,
+          customPrice: vi.customPrice,
+        });
       }
 
       toast({ title: "Items added", description: "Stock updated and items added to the tab." });
       setTempItems({});
+      setTempVariableItems([]);
       setAddItemsOpen(false);
 
-      // refresh stations + menu stock
       await qc.invalidateQueries({ queryKey: ["stations"] });
       await qc.invalidateQueries({ queryKey: ["menu"] });
     } catch (e: any) {
@@ -388,12 +397,13 @@ export default function Dashboard() {
     }
   }  
 
-  async function handleStartSession(st: ApiStation, pricingTier: PricingTier, customStartTime?: number | null) {
+  async function handleStartSession(st: ApiStation, pricingTier: PricingTier, customStartTime?: number | null, customerName?: string) {
     try {
       await postWithAuth("/api/sessions/start", {
         stationId: st.id,
         pricingTier,
         startedAt: customStartTime ? new Date(customStartTime).toISOString() : undefined,
+        customerName,
       });
 
       toast({ title: "Session started", description: `${st.name} is now active.` });
@@ -406,6 +416,19 @@ export default function Dashboard() {
     } catch (e: any) {
       toast({
         title: "Failed to start session",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleUpdateSessionName(sessionId: string, customerName: string | null) {
+    try {
+      await patchWithAuth(`/api/sessions/${sessionId}/name`, { customerName });
+      await qc.invalidateQueries({ queryKey: ["stations"] });
+    } catch (e: any) {
+      toast({
+        title: "Failed to update name",
         description: e?.message ?? "Please try again",
         variant: "destructive",
       });
@@ -765,6 +788,7 @@ export default function Dashboard() {
                     rateGroupHourly={st.rateGroupHourly}
                     currentPricingTier={session?.pricingTier}
                     startTime={session ? new Date(session.startedAt).getTime() : undefined}
+                    customerName={session?.customerName ?? null}
                     timeElapsed={isActive ? getTotalElapsedForStation(st) : 0}
                     currentCharge={isActive ? getTotalTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
                     onEdit={() => openEditStation(st)}
@@ -852,6 +876,8 @@ export default function Dashboard() {
                       : toNumber(selectedStation.rateGroupHourly)
                   }
                   currentSegmentCharge={getCurrentSegmentChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
+                  customerName={selectedStation.activeSession.customerName ?? null}
+                  onUpdateName={(name) => handleUpdateSessionName(selectedStation.activeSession!.id, name)}
                   items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
                   onAddItems={() => setAddItemsOpen(true)}
                   onCheckout={() => { if (selectedStation) openCheckoutWithAutoPause(selectedStation); }}
@@ -897,9 +923,9 @@ export default function Dashboard() {
         stationName={stationToStart?.name ?? ""}
         rateSoloHourly={stationToStart?.rateSoloHourly}
         rateGroupHourly={stationToStart?.rateGroupHourly}
-        onConfirmStart={(customStartTime, pricingTier) => {
+        onConfirmStart={(customStartTime, pricingTier, customerName) => {
           if(!stationToStart) return;
-          handleStartSession(stationToStart, pricingTier, customStartTime ?? null);
+          handleStartSession(stationToStart, pricingTier, customStartTime ?? null, customerName);
         }}
       />
 
@@ -924,6 +950,9 @@ export default function Dashboard() {
               })
             }
             onConfirm={() => handleConfirmAddItems(selectedStation)}
+            variableItems={tempVariableItems}
+            onAddVariableItem={(item) => setTempVariableItems((prev) => [...prev, item])}
+            onRemoveVariableItem={(index) => setTempVariableItems((prev) => prev.filter((_, i) => i !== index))}
         />
 
         <CheckoutDialog
@@ -945,6 +974,7 @@ export default function Dashboard() {
             }}
             sessionId={selectedStation.activeSession.id}
             stationName={selectedStation.name}
+            customerName={selectedStation.activeSession.customerName ?? null}
             activeSessions={activeCheckoutSessions}
             onSessionChange={(nextSessionId) => {
               const targetStation = activeStations.find(

@@ -6,6 +6,7 @@ import {
   removeSessionItemSchema,
   startSessionSchema,
   transferSessionSchema,
+  updateSessionNameSchema,
 } from "@shared/schema";
 import { getUserId } from "../middleware/auth";
 import { toHttpError } from "./errors";
@@ -14,10 +15,23 @@ import { sessionService } from "./service";
 export async function startSession(req: Request, res: Response) {
   try {
     const uid = getUserId(req);
-    const { stationId, pricingTier, startedAt } = startSessionSchema.parse(req.body);
+    const { stationId, pricingTier, startedAt, customerName } = startSessionSchema.parse(req.body);
     const start = startedAt ? new Date(startedAt) : new Date();
-    const created = await sessionService.startSession(uid, stationId, pricingTier, start);
+    const created = await sessionService.startSession(uid, stationId, pricingTier, start, customerName);
     res.status(201).json(created);
+  } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
+    const { status, message } = toHttpError(err);
+    return res.status(status).json({ error: message });
+  }
+}
+
+export async function updateSessionName(req: Request, res: Response) {
+  try {
+    const uid = getUserId(req);
+    const { customerName } = updateSessionNameSchema.parse(req.body);
+    const session = await sessionService.updateSessionName(uid, req.params.id, customerName);
+    res.json(session);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });
     const { status, message } = toHttpError(err);
@@ -108,9 +122,12 @@ export async function removeSessionItem(req: Request, res: Response) {
 export async function getSessionHistory(req: Request, res: Response) {
   try {
     const uid = getUserId(req);
-    const querySchema = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
-    const { date } = querySchema.parse(req.query);
-    const history = await sessionService.listHistory(uid, date);
+    const querySchema = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      search: z.string().max(100).optional(),
+    });
+    const { date, search } = querySchema.parse(req.query);
+    const history = await sessionService.listHistory(uid, date, search);
     res.json(history);
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ error: err.flatten() });

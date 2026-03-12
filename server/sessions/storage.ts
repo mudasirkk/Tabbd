@@ -77,7 +77,8 @@ class SessionStorage {
     userId: string,
     stationId: string,
     pricingTier: PricingTier,
-    startedAt: Date
+    startedAt: Date,
+    customerName?: string
   ): Promise<Session> {
     const existing = await this.getActiveSessionForStation(userId, stationId);
     if (existing) return existing;
@@ -100,6 +101,7 @@ class SessionStorage {
       .values({
         userId,
         stationId,
+        customerName: customerName ?? null,
         status: "active",
         startedAt,
         pricingTier,
@@ -110,6 +112,15 @@ class SessionStorage {
       .returning();
 
     return row;
+  }
+
+  async updateSessionName(userId: string, sessionId: string, customerName: string | null): Promise<Session | undefined> {
+    const [row] = await db
+      .update(sessions)
+      .set({ customerName, updatedAt: new Date() } as any)
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, sessionId), sql`${sessions.status} != 'closed'`))
+      .returning();
+    return row || undefined;
   }
 
   async pauseSession(userId: string, sessionId: string): Promise<Session | undefined> {
@@ -453,7 +464,7 @@ class SessionStorage {
   }
 
   async addItemToSession(userId: string, sessionId: string, input: unknown): Promise<{ sessionItem: SessionItem; menuItem: MenuItem }> {
-    const { menuItemId, qty } = addSessionItemSchema.parse(input);
+    const { menuItemId, qty, customName, customPrice } = addSessionItemSchema.parse(input);
 
     return await db.transaction(async (tx) => {
       const [sess] = await tx
@@ -471,6 +482,31 @@ class SessionStorage {
         .limit(1);
       if (!item) throw new Error("Menu item not found");
       if (!item.isActive) throw new Error("Menu item is inactive");
+
+      if (item.isVariablePrice) {
+        const snapshotName = customName ?? item.name;
+        const snapshotPrice = customPrice ?? item.price;
+
+        if (customPrice !== undefined) {
+          const parsed = Number(customPrice);
+          if (!Number.isFinite(parsed) || parsed <= 0) throw new Error("Invalid custom price");
+        }
+
+        const [createdSessionItem] = await tx
+          .insert(sessionItems)
+          .values({
+            sessionId,
+            menuItemId,
+            nameSnapshot: snapshotName,
+            priceSnapshot: snapshotPrice,
+            qty,
+            createdAt: new Date(),
+          })
+          .returning();
+
+        return { sessionItem: createdSessionItem, menuItem: item };
+      }
+
       if ((item.stockQty ?? 0) < qty) throw new Error("Insufficient stock");
 
       const [updatedMenuItem] = await tx
@@ -584,6 +620,7 @@ class SessionStorage {
         pricingTier: sessions.pricingTier,
         rateHourlySnapshot: sessions.rateHourlySnapshot,
         totalAmount: sessions.totalAmount,
+        customerName: sessions.customerName,
         createdAt: sessions.createdAt,
         updatedAt: sessions.updatedAt,
         stationName: stations.name,

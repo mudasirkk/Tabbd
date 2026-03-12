@@ -30,6 +30,7 @@ export const menuItems = pgTable("menu_items", {
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   stockQty: integer("stock_qty").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  isVariablePrice: boolean("is_variable_price").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -60,6 +61,7 @@ export const sessions = pgTable("sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   stationId: varchar("station_id").notNull().references(() => stations.id, { onDelete: "cascade" }),
+  customerName: text("customer_name"),
   status: sessionStatusEnum("status").notNull().default("active"),
   startedAt: timestamp("started_at").notNull(),
   pausedAt: timestamp("paused_at"),
@@ -184,11 +186,18 @@ export const startSessionSchema = z.object({
   stationId: z.string().min(1),
   pricingTier: z.enum(["solo", "group"]),
   startedAt: z.string().datetime().optional(),
+  customerName: z.string().max(100).optional(),
+});
+
+export const updateSessionNameSchema = z.object({
+  customerName: z.string().max(100).nullable(),
 });
 
 export const addSessionItemSchema = z.object({
   menuItemId: z.string().min(1),
   qty: z.number().int().positive(),
+  customName: z.string().min(1).max(200).optional(),
+  customPrice: z.string().optional(),
 });
 
 export const removeSessionItemSchema = z.object({

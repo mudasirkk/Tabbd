@@ -4,6 +4,7 @@ import { useAuthReady } from "@/lib/useAuthReady";
 import { fetchWithAuth } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTheme } from "@/hooks/useTheme";
 import { Moon, Sun, ArrowLeft, Clock } from "lucide-react";
@@ -39,6 +40,7 @@ interface SessionHistoryRow {
   stationName: string;
   stationType: string;
   pricingTier: "solo" | "group";
+  customerName: string | null;
   startedAt: string;
   closedAt: string;
   totalPausedSeconds: number;
@@ -80,6 +82,15 @@ export default function HistoryPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [itemsDrawer, setItemsDrawer] = useState<string | null>(null);
   const [timeDrawer, setTimeDrawer] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
+  const isSearching = debouncedSearch.trim().length > 0;
 
   useEffect(() => {
     if (!authReady) return;
@@ -87,8 +98,13 @@ export default function HistoryPage() {
   }, [authReady, user]);
 
   const { data, isLoading, error } = useQuery<SessionHistoryRow[]>({
-    queryKey: ["session-history", selectedDate],
-    queryFn: () => fetchWithAuth<SessionHistoryRow[]>(`/api/sessions/history?date=${selectedDate}`),
+    queryKey: ["session-history", isSearching ? null : selectedDate, debouncedSearch],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (!isSearching) params.set("date", selectedDate);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+      return fetchWithAuth<SessionHistoryRow[]>(`/api/sessions/history?${params}`);
+    },
     retry: false,
     enabled: authReady && !!user,
     refetchOnWindowFocus: true,
@@ -139,6 +155,14 @@ export default function HistoryPage() {
         <div className="container mx-auto max-w-screen-xl px-4 py-3 flex justify-between items-center gap-4">
           <h1 className="text-3xl font-bold font-display leading-tight">History</h1>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <Input
+              type="text"
+              placeholder="Search by customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9 w-40 text-sm"
+              data-testid="input-history-search"
+            />
             <input
               type="date"
               value={selectedDate}
@@ -168,8 +192,12 @@ export default function HistoryPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50">
               <Clock className="w-7 h-7 text-muted-foreground" />
             </div>
-            <p className="font-medium text-foreground/60">No sessions closed on this date</p>
-            <p className="mt-1 text-sm text-muted-foreground">Checked out sessions will appear here.</p>
+            <p className="font-medium text-foreground/60">
+              {isSearching ? "No sessions found for this customer" : "No sessions closed on this date"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isSearching ? "Try a different name or clear the search." : "Checked out sessions will appear here."}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -182,6 +210,11 @@ export default function HistoryPage() {
                     <p className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wide">
                       {row.stationType} &middot; {row.pricingTier === "solo" ? "Solo" : "Group"}
                     </p>
+                    {row.customerName && (
+                      <p className="text-sm text-foreground/70 mt-0.5" data-testid={`text-history-customer-${row.id}`}>
+                        {row.customerName}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">

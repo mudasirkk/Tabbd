@@ -53,6 +53,7 @@ interface CheckoutDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   stationName: string;
+  customerName?: string | null;
   activeSessions: Array<{ sessionId: string; stationName: string }>;
   onSessionChange: (sessionId: string) => void;
   currentSegmentSeconds: number;
@@ -76,6 +77,7 @@ export function CheckoutDialog({
   onOpenChange,
   sessionId,
   stationName,
+  customerName,
   activeSessions,
   onSessionChange,
   currentSegmentSeconds,
@@ -228,6 +230,11 @@ export function CheckoutDialog({
                 Checkout - {stationName}
               </DialogTitle>
               <DialogDescription>Review charges and complete payment.</DialogDescription>
+              {customerName && (
+                <p className="text-sm text-muted-foreground" data-testid="text-checkout-customer-name">
+                  Customer: {customerName}
+                </p>
+              )}
             </div>
             {activeSessions.length > 1 && (
               <div className="grid gap-1">

@@ -60,7 +60,6 @@ export function AddItemsDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [variableModalOpen, setVariableModalOpen] = useState(false);
   const [variableTarget, setVariableTarget] = useState<MenuItem | null>(null);
-  const [variableCustomName, setVariableCustomName] = useState("");
   const [variableCustomPrice, setVariableCustomPrice] = useState("");
 
   const totalItems = Object.values(selectedItems).reduce((sum, count) => sum + count, 0);
@@ -157,7 +156,6 @@ export function AddItemsDialog({
                         onClick={() => {
                           if (isVariable) {
                             setVariableTarget(item);
-                            setVariableCustomName(item.name);
                             setVariableCustomPrice(
                               typeof item.price === "number"
                                 ? item.price.toFixed(2)
@@ -278,23 +276,12 @@ export function AddItemsDialog({
       <Dialog open={variableModalOpen} onOpenChange={setVariableModalOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Custom Item</DialogTitle>
+            <DialogTitle>{variableTarget?.name}</DialogTitle>
             <DialogDescription>
-              Set the name and price for this item.
+              Set the price for this item.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="variable-item-name">Item Name</Label>
-              <Input
-                id="variable-item-name"
-                value={variableCustomName}
-                onChange={(e) => setVariableCustomName(e.target.value)}
-                placeholder="e.g., Chicken Biryani"
-                maxLength={200}
-                data-testid="input-variable-item-name"
-              />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="variable-item-price">Price</Label>
               <Input
@@ -314,15 +301,15 @@ export function AddItemsDialog({
             <Button
               onClick={() => {
                 const price = parseFloat(variableCustomPrice);
-                if (!variableCustomName.trim() || !Number.isFinite(price) || price <= 0) return;
+                if (!variableTarget || !Number.isFinite(price) || price <= 0) return;
                 onAddVariableItem?.({
-                  menuItemId: variableTarget!.id,
-                  customName: variableCustomName.trim(),
+                  menuItemId: variableTarget.id,
+                  customName: variableTarget.name,
                   customPrice: price.toFixed(2),
                 });
                 setVariableModalOpen(false);
               }}
-              disabled={!variableCustomName.trim() || !Number.isFinite(parseFloat(variableCustomPrice)) || parseFloat(variableCustomPrice) <= 0}
+              disabled={!variableTarget || !Number.isFinite(parseFloat(variableCustomPrice)) || parseFloat(variableCustomPrice) <= 0}
               data-testid="button-confirm-variable-item"
             >
               Add Item

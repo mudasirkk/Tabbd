@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthReady } from "@/lib/useAuthReady";
 import { fetchWithAuth } from "@/lib/api";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTheme } from "@/hooks/useTheme";
-import { Moon, Sun, ArrowLeft, Clock } from "lucide-react";
+import { Moon, Sun, ArrowLeft, Clock, Search, X, Loader2, CalendarDays } from "lucide-react";
 
 interface SessionHistoryItem {
   id: string;
@@ -77,6 +77,7 @@ function formatMoney(amount: number): string {
 export default function HistoryPage() {
   const { ready: authReady, user } = useAuthReady();
   const { theme, toggleTheme } = useTheme();
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(today);
@@ -97,7 +98,7 @@ export default function HistoryPage() {
     if (!user) window.location.replace("/signin");
   }, [authReady, user]);
 
-  const { data, isLoading, error } = useQuery<SessionHistoryRow[]>({
+  const { data, isLoading, isFetching, error } = useQuery<SessionHistoryRow[]>({
     queryKey: ["session-history", isSearching ? null : selectedDate, debouncedSearch],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -108,68 +109,27 @@ export default function HistoryPage() {
     retry: false,
     enabled: authReady && !!user,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   });
 
   const rows = useMemo(() => data ?? [], [data]);
 
+  // Only show full-page loader before first data arrives and auth isn't ready
   if (!authReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="p-6 max-w-lg w-full space-y-3">
-          <h2 className="text-lg font-semibold">Couldn&apos;t load session history</h2>
-          <p className="text-sm text-muted-foreground">
-            Please refresh. If this continues, sign out and sign back in.
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              Refresh
-            </Button>
-            <Button onClick={() => window.location.assign("/dashboard")}>
-              Back to Dashboard
-            </Button>
-          </div>
-        </Card>
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header — always rendered so search input is never unmounted */}
       <header className="border-b border-border/50 sticky top-0 bg-background/90 backdrop-blur-sm z-10">
         <div className="container mx-auto max-w-screen-xl px-4 py-3 flex justify-between items-center gap-4">
           <h1 className="text-3xl font-bold font-display leading-tight">History</h1>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            <Input
-              type="text"
-              placeholder="Search by customer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 w-40 text-sm"
-              data-testid="input-history-search"
-            />
-            <input
-              type="date"
-              value={selectedDate}
-              max={today}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
-            />
+          <div className="flex items-center gap-1.5">
             <Button
               variant="outline"
               size="icon"
@@ -184,10 +144,89 @@ export default function HistoryPage() {
             </Button>
           </div>
         </div>
+
+        {/* Filter bar */}
+        <div className="container mx-auto max-w-screen-xl px-4 pb-3">
+          <div className="flex items-center gap-2">
+            {/* Search input with icon and clear button */}
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search by customer name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 pl-9 pr-8 text-sm"
+                data-testid="input-history-search"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Date picker — dimmed when search is active */}
+            <div className={`flex items-center gap-1.5 transition-opacity ${isSearching ? "opacity-40 pointer-events-none" : ""}`}>
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <input
+                type="date"
+                value={selectedDate}
+                max={today}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
+                tabIndex={isSearching ? -1 : 0}
+              />
+            </div>
+
+            {/* Fetching spinner */}
+            {isFetching && (
+              <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+            )}
+          </div>
+
+          {/* Search mode indicator */}
+          {isSearching && (
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Searching all dates for &ldquo;{debouncedSearch}&rdquo;
+            </p>
+          )}
+        </div>
       </header>
 
       <main className="container mx-auto max-w-screen-xl px-4 py-6">
-        {rows.length === 0 ? (
+        {/* Error state */}
+        {error ? (
+          <div className="flex items-center justify-center p-6">
+            <Card className="p-6 max-w-lg w-full space-y-3">
+              <h2 className="text-lg font-semibold">Couldn&apos;t load session history</h2>
+              <p className="text-sm text-muted-foreground">
+                Please refresh. If this continues, sign out and sign back in.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Refresh
+                </Button>
+                <Button onClick={() => window.location.assign("/dashboard")}>
+                  Back to Dashboard
+                </Button>
+              </div>
+            </Card>
+          </div>
+        ) : isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : rows.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-12 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50">
               <Clock className="w-7 h-7 text-muted-foreground" />
@@ -200,7 +239,7 @@ export default function HistoryPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className={`space-y-4 transition-opacity duration-200 ${isFetching ? "opacity-60" : ""}`}>
             {rows.map((row) => (
               <Card key={row.id} className="border-t-2 border-t-primary/40 p-5 space-y-3">
                 {/* Header */}

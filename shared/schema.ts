@@ -14,6 +14,9 @@ export const users = pgTable("users", {
   logoDataUrl: text("logo_data_url"),
   discountThresholdSeconds: integer("discount_threshold_seconds").notNull().default(20 * 3600),
   discountRate: decimal("discount_rate", { precision: 5, scale: 4 }).notNull().default("0.2"),
+  cloverMerchantId: text("clover_merchant_id"),
+  cloverAccessToken: text("clover_access_token"),
+  cloverConnectedAt: timestamp("clover_connected_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -30,6 +33,11 @@ export const menuItems = pgTable("menu_items", {
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   stockQty: integer("stock_qty").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  isVariablePrice: boolean("is_variable_price").notNull().default(false),
+  sku: text("sku"),
+  cloverItemId: text("clover_item_id"),
+  cloverCategoryId: text("clover_category_id"),
+  lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -60,6 +68,7 @@ export const sessions = pgTable("sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   stationId: varchar("station_id").notNull().references(() => stations.id, { onDelete: "cascade" }),
+  customerName: text("customer_name"),
   status: sessionStatusEnum("status").notNull().default("active"),
   startedAt: timestamp("started_at").notNull(),
   pausedAt: timestamp("paused_at"),
@@ -184,11 +193,18 @@ export const startSessionSchema = z.object({
   stationId: z.string().min(1),
   pricingTier: z.enum(["solo", "group"]),
   startedAt: z.string().datetime().optional(),
+  customerName: z.string().max(100).optional(),
+});
+
+export const updateSessionNameSchema = z.object({
+  customerName: z.string().max(100).nullable(),
 });
 
 export const addSessionItemSchema = z.object({
   menuItemId: z.string().min(1),
   qty: z.number().int().positive(),
+  customName: z.string().min(1).max(200).optional(),
+  customPrice: z.string().optional(),
 });
 
 export const removeSessionItemSchema = z.object({
@@ -209,6 +225,20 @@ export const closeSessionSchema = z.object({
     segmentId: z.string().min(1),
     pricingTier: z.enum(["solo", "group"]),
   })).optional(),
+});
+
+export const cloverSyncApplySchema = z.object({
+  mode: z.enum(["replace", "merge"]),
+  selectedItemIds: z.array(z.string()).optional(),
+  confirmedDeletes: z.array(z.string()).optional(),
+  conflictResolutions: z.array(z.object({
+    tabbdItemId: z.string(),
+    action: z.enum(["keep_tabbd", "use_clover"]),
+  })).optional(),
+});
+
+export const cloverPushSchema = z.object({
+  itemIds: z.array(z.string()).optional(),
 });
 
 /**

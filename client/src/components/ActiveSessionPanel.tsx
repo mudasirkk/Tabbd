@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { ArrowRightLeft, Clock, Receipt, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Check, Clock, Pencil, Receipt, ShoppingBag, Trash2, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 export interface SessionItem {
   id: string;
@@ -29,6 +30,8 @@ interface ActiveSessionPanelProps {
   currentHourlyRate?: number;
   currentSegmentCharge?: number;
   items: SessionItem[];
+  customerName?: string | null;
+  onUpdateName?: (name: string | null) => void;
   onAddItems: () => void;
   onCheckout: () => void;
   onTransfer: () => void;
@@ -44,6 +47,8 @@ export function ActiveSessionPanel({
   currentPricingTier = "group",
   currentHourlyRate = 0,
   currentSegmentCharge = 0,
+  customerName,
+  onUpdateName,
   items,
   onAddItems,
   onCheckout,
@@ -51,6 +56,8 @@ export function ActiveSessionPanel({
   onRequestRemoveItem,
 }: ActiveSessionPanelProps) {
   const [activeTab, setActiveTab] = useState<"breakdown" | "items">("items");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -105,6 +112,72 @@ export function ActiveSessionPanel({
             <Badge className="bg-primary/15 text-primary border border-primary/30 shrink-0">
               Active Session
             </Badge>
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            {isEditingName ? (
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <Input
+                  value={editNameValue}
+                  onChange={(e) => setEditNameValue(e.target.value)}
+                  placeholder="Customer name"
+                  className="h-7 text-sm"
+                  maxLength={100}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      onUpdateName?.(editNameValue.trim() || null);
+                      setIsEditingName(false);
+                    }
+                    if (e.key === "Escape") {
+                      setIsEditingName(false);
+                    }
+                  }}
+                  data-testid="input-edit-customer-name"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => {
+                    onUpdateName?.(editNameValue.trim() || null);
+                    setIsEditingName(false);
+                  }}
+                  data-testid="button-save-customer-name"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setIsEditingName(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                {customerName ? (
+                  <span className="text-lg font-semibold text-foreground" data-testid="text-panel-customer-name">
+                    {customerName}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground/50 italic">No customer name</span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  onClick={() => {
+                    setEditNameValue(customerName ?? "");
+                    setIsEditingName(true);
+                  }}
+                  data-testid="button-edit-customer-name"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
           {startTime && (
             <p className="text-sm text-muted-foreground" data-testid="text-panel-start-time">

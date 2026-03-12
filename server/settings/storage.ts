@@ -65,6 +65,37 @@ export class SettingsStorage {
       .returning();
     return row ?? undefined;
   }
+
+  async updateCloverCredentials(
+    userId: string,
+    data: { merchantId: string; accessToken: string }
+  ): Promise<User | undefined> {
+    const [row] = await db
+      .update(users)
+      .set({
+        cloverMerchantId: data.merchantId,
+        cloverAccessToken: data.accessToken,
+        cloverConnectedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return row ?? undefined;
+  }
+
+  async clearCloverCredentials(userId: string): Promise<User | undefined> {
+    const [row] = await db
+      .update(users)
+      .set({
+        cloverMerchantId: null,
+        cloverAccessToken: null,
+        cloverConnectedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return row ?? undefined;
+  }
 }
 
 export const settingsStorage = new SettingsStorage();

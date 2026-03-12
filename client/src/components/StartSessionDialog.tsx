@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ interface StartSessionDialogProps {
   stationName: string;
   rateSoloHourly?: number | string;
   rateGroupHourly?: number | string;
-  onConfirmStart: (customStartTime: number, pricingTier: "solo" | "group") => void;
+  onConfirmStart: (customStartTime: number, pricingTier: "solo" | "group", customerName?: string) => void;
 }
 
 export function StartSessionDialog({
@@ -33,6 +33,7 @@ export function StartSessionDialog({
   const defaultTime = now.toTimeString().slice(0, 5); // HH:MM format
   const [customTime, setCustomTime] = useState(defaultTime);
   const [pricingTier, setPricingTier] = useState<"solo" | "group">("solo");
+  const [customerName, setCustomerName] = useState("");
 
   const formatRate = (val: number | string | undefined) => {
     if (val === undefined || val === null) return "—";
@@ -53,17 +54,19 @@ export function StartSessionDialog({
       startDate.setDate(startDate.getDate() - 1);
     }
     
-    onConfirmStart(startDate.getTime(), pricingTier);
+    onConfirmStart(startDate.getTime(), pricingTier, customerName.trim() || undefined);
     onOpenChange(false);
     setCustomTime(defaultTime); // Reset for next time
     setPricingTier("solo");
+    setCustomerName("");
   };
 
   const handleUseCurrentTime = () => {
-    onConfirmStart(Date.now(), pricingTier);
+    onConfirmStart(Date.now(), pricingTier, customerName.trim() || undefined);
     onOpenChange(false);
     setCustomTime(defaultTime);
     setPricingTier("solo");
+    setCustomerName("");
   };
 
   return (
@@ -79,6 +82,25 @@ export function StartSessionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="customer-name" className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Customer Name
+            </Label>
+            <Input
+              id="customer-name"
+              type="text"
+              placeholder="Optional - e.g., John"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              data-testid="input-customer-name"
+              maxLength={100}
+            />
+            <p className="text-xs text-muted-foreground">
+              Associate this session with a customer (optional)
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label className="flex items-center gap-2">Pricing Tier</Label>
 

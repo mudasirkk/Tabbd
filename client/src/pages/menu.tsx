@@ -18,6 +18,7 @@ type MenuItem = {
   price: string | number;
   stockQty: number;
   isActive: boolean;
+  isVariablePrice: boolean;
   updatedAt: string;
 };
 
@@ -52,6 +53,7 @@ export default function MenuManagementPage() {
   const [price, setPrice] = useState<string>("0");
   const [stockQty, setStockQty] = useState<string>("0");
   const [isActive, setIsActive] = useState(true);
+  const [isVariablePrice, setIsVariablePrice] = useState(false);
 
   const grouped = useMemo(() => {
     const list = items ?? [];
@@ -83,6 +85,7 @@ export default function MenuManagementPage() {
     setPrice("0");
     setStockQty("0");
     setIsActive(true);
+    setIsVariablePrice(false);
   }
 
   function openCreate() {
@@ -99,13 +102,14 @@ export default function MenuManagementPage() {
     setPrice(String(toNumber(item.price).toFixed(2)));
     setStockQty(String(item.stockQty ?? 0));
     setIsActive(!!item.isActive);
+    setIsVariablePrice(!!item.isVariablePrice);
     setOpen(true);
   }
 
   async function save() {
     const trimmed = name.trim();
     const p = Number(price);
-    const q = Number(stockQty);
+    const q = isVariablePrice ? 0 : Number(stockQty);
 
     if (!trimmed) {
       toast({ title: "Name is required", variant: "destructive" });
@@ -115,7 +119,7 @@ export default function MenuManagementPage() {
       toast({ title: "Price must be a valid number", variant: "destructive" });
       return;
     }
-    if (!Number.isInteger(q) || q < 0) {
+    if (!isVariablePrice && (!Number.isInteger(q) || q < 0)) {
       toast({ title: "Stock must be a whole number (0+)", variant: "destructive" });
       return;
     }
@@ -129,6 +133,7 @@ export default function MenuManagementPage() {
           price: p.toFixed(2),
           stockQty: q,
           isActive,
+          isVariablePrice,
         });
         toast({ title: "Item created" });
       } else {
@@ -139,6 +144,7 @@ export default function MenuManagementPage() {
           price: p.toFixed(2),
           stockQty: q,
           isActive,
+          isVariablePrice,
         });
         toast({ title: "Item updated" });
       }
@@ -259,10 +265,14 @@ export default function MenuManagementPage() {
                           <div className="text-lg font-mono font-bold text-primary">
                             ${toNumber(it.price).toFixed(2)}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            Stock:{" "}
-                            <span className="font-medium text-foreground/80">{it.stockQty ?? 0}</span>
-                          </div>
+                          {it.isVariablePrice ? (
+                            <div className="text-xs text-primary font-medium">Variable Price</div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              Stock:{" "}
+                              <span className="font-medium text-foreground/80">{it.stockQty ?? 0}</span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-end gap-1.5">
                             <span
                               className={[
@@ -323,13 +333,19 @@ export default function MenuManagementPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Price</label>
+                <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {isVariablePrice ? "Default Variable Price" : "Price"}
+                </label>
                 <Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Stock Qty</label>
-                <Input value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" />
+                {isVariablePrice ? (
+                  <Input value="VARIABLE" disabled className="text-primary font-medium" />
+                ) : (
+                  <Input value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" />
+                )}
               </div>
             </div>
 
@@ -344,6 +360,20 @@ export default function MenuManagementPage() {
                 onClick={() => setIsActive((v) => !v)}
               >
                 {isActive ? "Active" : "Inactive"}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between border border-border/60 rounded-md p-3 gap-3">
+              <div>
+                <div className="text-sm font-medium">Variable Price</div>
+                <div className="text-xs text-muted-foreground">Operator sets custom name and price when adding to a session.</div>
+              </div>
+              <Button
+                type="button"
+                variant={isVariablePrice ? "default" : "outline"}
+                onClick={() => setIsVariablePrice((v) => !v)}
+              >
+                {isVariablePrice ? "Yes" : "No"}
               </Button>
             </div>
 

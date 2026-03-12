@@ -19,6 +19,7 @@ interface StationCardProps {
   timeElapsed?: number;
   currentCharge?: number;
   startTime?: number;
+  customerName?: string | null;
   onStart: () => void;
   onStop: () => void;
   onResume?: () => void;
@@ -181,6 +182,7 @@ export function StationCard({
   timeElapsed = 0,
   currentCharge = 0,
   startTime,
+  customerName,
   onStart,
   onStop,
   onResume,
@@ -323,6 +325,11 @@ export function StationCard({
           <div className="space-y-3">
             {/* Timer + charge centered */}
             <div className="text-center space-y-1">
+              {customerName && (
+                <div className="text-base font-semibold text-foreground" data-testid={`text-customer-name-${id}`}>
+                  {customerName}
+                </div>
+              )}
               {startTime && (
                 <div className="text-xs text-muted-foreground" data-testid={`text-start-time-${id}`}>
                   Started {formatStartTime(startTime)}

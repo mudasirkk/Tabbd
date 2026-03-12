@@ -14,6 +14,8 @@ export type MeResponse = {
   logoDataUrl: string | null;
   discountThresholdSeconds: number;
   discountRate: string;
+  cloverMerchantId: string | null;
+  cloverConnectedAt: string | null;
 };
 
 class SettingsService {
@@ -28,6 +30,8 @@ class SettingsService {
       logoDataUrl: user?.logoDataUrl ?? null,
       discountThresholdSeconds: user?.discountThresholdSeconds ?? 20 * 3600,
       discountRate: user?.discountRate ?? "0.2",
+      cloverMerchantId: user?.cloverMerchantId ?? null,
+      cloverConnectedAt: user?.cloverConnectedAt?.toISOString() ?? null,
     };
   }
 

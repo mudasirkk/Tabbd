@@ -117,6 +117,7 @@ class CloverService {
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: redirectUri,
+      response_type: "code",
       state,
     });
 
@@ -138,8 +139,8 @@ class CloverService {
     const userId = entry.userId;
     this.stateMap.delete(state);
 
-    const cloverBaseUrl =
-      process.env.CLOVER_BASE_URL ?? "https://sandbox.dev.clover.com";
+    const cloverApiBaseUrl =
+      process.env.CLOVER_API_BASE_URL ?? "https://apisandbox.dev.clover.com";
     const appId = process.env.CLOVER_APP_ID ?? "";
     const appSecret = process.env.CLOVER_APP_SECRET ?? "";
 
@@ -148,11 +149,31 @@ class CloverService {
       client_secret: appSecret,
       code,
     });
-    const tokenUrl = `${cloverBaseUrl}/oauth/token?${tokenParams.toString()}`;
-    const res = await fetch(tokenUrl, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const tokenUrl = `${cloverApiBaseUrl}/oauth/token?${tokenParams.toString()}`;
+
+    console.log(`[Clover] exchanging code for token at ${cloverApiBaseUrl}/oauth/token`);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let res: globalThis.Response;
+    try {
+      res = await fetch(tokenUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new CloverAuthError("Clover token exchange timed out after 15s");
+      }
+      throw new CloverAuthError(
+        `Clover token exchange failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    clearTimeout(timeout);
+
+    console.log(`[Clover] token exchange response: ${res.status}`);
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -172,6 +193,7 @@ class CloverService {
       accessToken,
     });
 
+    console.log(`[Clover] credentials saved for user ${userId}, merchant ${merchantId}`);
     return userId;
   }
 

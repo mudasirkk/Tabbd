@@ -66,10 +66,26 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("clover") === "connected") {
+    const cloverStatus = params.get("clover");
+    if (cloverStatus === "connected") {
       toast({ title: "Clover connected", description: "Your Clover account has been linked." });
-      window.history.replaceState({}, "", window.location.pathname);
       qc.invalidateQueries({ queryKey: ["me"] });
+    } else if (cloverStatus === "error") {
+      const reason = params.get("reason") ?? "unknown";
+      const messages: Record<string, string> = {
+        auth_failed: "OAuth authentication failed. Please try again.",
+        invalid_params: "Missing or invalid parameters from Clover.",
+        api_error: "Could not communicate with Clover. Please try again later.",
+        unknown: "Something went wrong connecting to Clover.",
+      };
+      toast({
+        title: "Clover connection failed",
+        description: messages[reason] ?? messages.unknown,
+        variant: "destructive",
+      });
+    }
+    if (cloverStatus) {
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
 

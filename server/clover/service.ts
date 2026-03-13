@@ -112,11 +112,15 @@ class CloverService {
       process.env.CLOVER_BASE_URL ?? "https://sandbox.dev.clover.com";
     const appId = process.env.CLOVER_APP_ID ?? "";
     const appBaseUrl = process.env.APP_BASE_URL ?? "";
-    const redirectUri = encodeURIComponent(
-      process.env.CLOVER_REDIRECT_URI ?? `${appBaseUrl}/api/clover/callback`
-    );
+    const redirectUri =
+      process.env.CLOVER_REDIRECT_URI ?? `${appBaseUrl}/api/clover/callback`;
+    const params = new URLSearchParams({
+      client_id: appId,
+      redirect_uri: redirectUri,
+      state,
+    });
 
-    return `${cloverBaseUrl}/oauth/v2/authorize?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&state=${state}`;
+    return `${cloverBaseUrl}/oauth/authorize?${params.toString()}`;
   }
 
   async handleCallback(
@@ -134,23 +138,20 @@ class CloverService {
     const userId = entry.userId;
     this.stateMap.delete(state);
 
-    const cloverApiBaseUrl =
-      process.env.CLOVER_API_BASE_URL ?? "https://apisandbox.dev.clover.com";
+    const cloverBaseUrl =
+      process.env.CLOVER_BASE_URL ?? "https://sandbox.dev.clover.com";
     const appId = process.env.CLOVER_APP_ID ?? "";
     const appSecret = process.env.CLOVER_APP_SECRET ?? "";
 
-    const tokenUrl = `${cloverApiBaseUrl}/oauth/v2/token`;
+    const tokenParams = new URLSearchParams({
+      client_id: appId,
+      client_secret: appSecret,
+      code,
+    });
+    const tokenUrl = `${cloverBaseUrl}/oauth/token?${tokenParams.toString()}`;
     const res = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: new URLSearchParams({
-        client_id: appId,
-        client_secret: appSecret,
-        code,
-      }).toString(),
+      method: "GET",
+      headers: { Accept: "application/json" },
     });
 
     if (!res.ok) {

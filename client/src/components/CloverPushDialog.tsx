@@ -151,16 +151,26 @@ export default function CloverPushDialog({ open, onOpenChange }: CloverPushDialo
             {totalCount > 0 && items && (
               <>
                 <div className="flex items-center justify-between px-1">
-                  <p className="text-xs text-muted-foreground">
-                    {selectedCount} of {totalCount} selected
-                  </p>
-                  <button
-                    type="button"
-                    onClick={allSelected ? unselectAll : selectAll}
-                    className="text-xs text-primary hover:underline font-medium"
-                  >
-                    {allSelected ? "Unselect All" : "Select All"}
-                  </button>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={allSelected ? unselectAll : selectAll}
+                      className="accent-primary w-3.5 h-3.5"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {allSelected ? "All" : selectedCount} of {totalCount} selected
+                    </span>
+                  </label>
+                  {!allSelected && !noneSelected && (
+                    <button
+                      type="button"
+                      onClick={selectAll}
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      Select All
+                    </button>
+                  )}
                 </div>
                 <ScrollArea className="h-48 rounded-md border border-border/60">
                   <div className="p-3 space-y-1">

@@ -485,48 +485,81 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
                   return (
                     <div
                       key={key}
-                      className="rounded-md border border-border/60 p-3 space-y-2"
+                      className="rounded-lg border border-border/60 overflow-hidden"
                     >
-                      <p className="text-sm font-semibold">{item.cloverItem.name}</p>
-                      <div className="space-y-1">
-                        {(item.diffs ?? []).map((diff) => (
-                          <div key={diff.field} className="grid grid-cols-[80px_1fr_1fr] gap-2 text-xs">
-                            <span className="text-muted-foreground capitalize">{diff.field}</span>
-                            <span className="text-foreground/70 truncate" title={String(diff.tabbdValue ?? "—")}>
-                              Tabbd: {String(diff.tabbdValue ?? "—")}
-                            </span>
-                            <span className="text-primary truncate" title={String(diff.cloverValue ?? "—")}>
-                              Clover: {String(diff.cloverValue ?? "—")}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="px-3 py-2 border-b border-border/40 bg-muted/30">
+                        <p className="text-sm font-semibold">{item.cloverItem.name}</p>
                       </div>
-                      {item.tabbdItemId && (
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setResolution(item.tabbdItemId!, "clover")}
-                            className={[
-                              "flex-1 py-1.5 rounded text-xs font-medium border transition-colors",
-                              resolution === "clover"
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-transparent text-muted-foreground border-border hover:bg-muted/50",
-                            ].join(" ")}
-                          >
-                            Use Clover
-                          </button>
+                      {item.tabbdItemId ? (
+                        <div className="grid grid-cols-2">
+                          {/* Tabbd side */}
                           <button
                             type="button"
                             onClick={() => setResolution(item.tabbdItemId!, "tabbd")}
                             className={[
-                              "flex-1 py-1.5 rounded text-xs font-medium border transition-colors",
+                              "p-3 text-left transition-colors border-r border-border/40 relative",
                               resolution === "tabbd"
-                                ? "bg-muted text-foreground border-border"
-                                : "bg-transparent text-muted-foreground border-border hover:bg-muted/50",
+                                ? "bg-muted/60"
+                                : "bg-transparent hover:bg-muted/20",
                             ].join(" ")}
                           >
-                            Keep Tabbd
+                            <p className={[
+                              "text-[10px] font-semibold uppercase tracking-widest mb-2",
+                              resolution === "tabbd" ? "text-foreground" : "text-muted-foreground",
+                            ].join(" ")}>
+                              Current (Tabbd) {resolution === "tabbd" ? " \u2713" : ""}
+                            </p>
+                            <div className="space-y-1.5">
+                              {(item.diffs ?? []).map((diff) => (
+                                <div key={diff.field}>
+                                  <p className="text-[10px] text-muted-foreground capitalize">{diff.field}</p>
+                                  <p className="text-xs text-foreground/80 truncate" title={String(diff.tabbdValue ?? "—")}>
+                                    {String(diff.tabbdValue ?? "—")}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
                           </button>
+                          {/* Clover side */}
+                          <button
+                            type="button"
+                            onClick={() => setResolution(item.tabbdItemId!, "clover")}
+                            className={[
+                              "p-3 text-left transition-colors relative",
+                              resolution === "clover"
+                                ? "bg-primary/10"
+                                : "bg-transparent hover:bg-muted/20",
+                            ].join(" ")}
+                          >
+                            <p className={[
+                              "text-[10px] font-semibold uppercase tracking-widest mb-2",
+                              resolution === "clover" ? "text-primary" : "text-muted-foreground",
+                            ].join(" ")}>
+                              Clover {resolution === "clover" ? " \u2713" : ""}
+                            </p>
+                            <div className="space-y-1.5">
+                              {(item.diffs ?? []).map((diff) => (
+                                <div key={diff.field}>
+                                  <p className="text-[10px] text-muted-foreground capitalize">{diff.field}</p>
+                                  <p className={[
+                                    "text-xs truncate",
+                                    resolution === "clover" ? "text-primary font-medium" : "text-foreground/80",
+                                  ].join(" ")} title={String(diff.cloverValue ?? "—")}>
+                                    {String(diff.cloverValue ?? "—")}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-3 space-y-1">
+                          {(item.diffs ?? []).map((diff) => (
+                            <div key={diff.field} className="flex gap-2 text-xs">
+                              <span className="text-muted-foreground capitalize w-16 shrink-0">{diff.field}</span>
+                              <span className="text-primary truncate">{String(diff.cloverValue ?? "—")}</span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>

@@ -14,40 +14,45 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// ─── API types ───────────────────────────────────────────────────────────────
+// ─── API types (must match server response shapes) ──────────────────────────
 
-interface SyncPreviewItem {
-  cloverItemId: string;
+interface CloverCategory {
+  id: string;
   name: string;
-  price: number;
-  description: string | null;
-  category: string;
-  sku: string | null;
 }
 
-interface ChangedField {
+interface CloverItem {
+  id: string;
+  name: string;
+  price: number; // cents
+  alternateName?: string | null;
+  sku?: string | null;
+  stockCount?: number;
+  categories?: { elements: CloverCategory[] };
+}
+
+interface FieldDiff {
   field: string;
-  tabbdValue: string | null;
-  cloverValue: string | null;
+  tabbdValue: unknown;
+  cloverValue: unknown;
 }
 
 interface ChangedItem {
-  tabbdItemId: string;
-  cloverItemId: string;
-  name: string;
-  changes: ChangedField[];
+  cloverItem: CloverItem;
+  tabbdItemId?: string;
+  diffs?: FieldDiff[];
 }
 
 interface DeletedItem {
-  tabbdItemId: string;
+  id: string;
   name: string;
 }
 
 interface SyncPreviewResponse {
-  newItems: SyncPreviewItem[];
+  newItems: CloverItem[];
   changedItems: ChangedItem[];
   deletedItems: DeletedItem[];
-  unchangedItems: SyncPreviewItem[];
+  unchangedItems: ChangedItem[];
 }
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -59,8 +64,8 @@ interface CloverSyncDialogProps {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmt(price: number): string {
-  return `$${price.toFixed(2)}`;
+function fmtCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -114,13 +119,13 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
         setPreview(data);
 
         // pre-select all new items by default
-        setFirstTimeSelected(new Set(data.newItems.map((i) => i.cloverItemId)));
-        setNewItemsSelected(new Set(data.newItems.map((i) => i.cloverItemId)));
+        setFirstTimeSelected(new Set(data.newItems.map((i) => i.id)));
+        setNewItemsSelected(new Set(data.newItems.map((i) => i.id)));
 
         // default conflict resolution: use Clover for all
         const resolutions = new Map<string, "clover" | "tabbd">();
         for (const item of data.changedItems) {
-          resolutions.set(item.tabbdItemId, "clover");
+          if (item.tabbdItemId) resolutions.set(item.tabbdItemId, "clover");
         }
         setConflictResolutions(resolutions);
 
@@ -152,7 +157,7 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
       if (isFirstTime || mergeMode === "replace") {
         const selectedItemIds = isFirstTime
           ? Array.from(firstTimeSelected)
-          : preview.newItems.map((i) => i.cloverItemId);
+          : preview.newItems.map((i) => i.id);
 
         await postWithAuth("/api/clover/sync/apply", {
           mode: "replace",
@@ -161,7 +166,10 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
       } else {
         // merge
         const resolvedConflicts = Array.from(conflictResolutions.entries()).map(
-          ([tabbdItemId, action]) => ({ tabbdItemId, action })
+          ([tabbdItemId, action]) => ({
+            tabbdItemId,
+            action: action === "clover" ? "use_clover" : "keep_tabbd",
+          })
         );
 
         await postWithAuth("/api/clover/sync/apply", {
@@ -246,11 +254,11 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
                   try {
                     const data = await postWithAuth<SyncPreviewResponse>("/api/clover/sync/preview");
                     setPreview(data);
-                    setFirstTimeSelected(new Set(data.newItems.map((i) => i.cloverItemId)));
-                    setNewItemsSelected(new Set(data.newItems.map((i) => i.cloverItemId)));
+                    setFirstTimeSelected(new Set(data.newItems.map((i) => i.id)));
+                    setNewItemsSelected(new Set(data.newItems.map((i) => i.id)));
                     const resolutions = new Map<string, "clover" | "tabbd">();
                     for (const item of data.changedItems) {
-                      resolutions.set(item.tabbdItemId, "clover");
+                      if (item.tabbdItemId) resolutions.set(item.tabbdItemId, "clover");
                     }
                     setConflictResolutions(resolutions);
                     setDeletedSelected(new Set());
@@ -305,24 +313,25 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
               </p>
             ) : (
               preview.newItems.map((item) => {
-                const checked = firstTimeSelected.has(item.cloverItemId);
+                const checked = firstTimeSelected.has(item.id);
+                const cat = item.categories?.elements?.[0]?.name ?? "Miscellaneous";
                 return (
                   <label
-                    key={item.cloverItemId}
+                    key={item.id}
                     className="flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleFirstTime(item.cloverItemId)}
+                      onChange={() => toggleFirstTime(item.id)}
                       className="accent-primary w-4 h-4 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium leading-tight">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.category}</p>
+                      <p className="text-xs text-muted-foreground">{cat}</p>
                     </div>
                     <span className="font-mono text-sm font-semibold text-primary shrink-0">
-                      {fmt(item.price)}
+                      {fmtCents(item.price)}
                     </span>
                   </label>
                 );
@@ -427,24 +436,25 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
             ) : (
               <div className="mt-2 space-y-1">
                 {preview.newItems.map((item) => {
-                  const checked = newItemsSelected.has(item.cloverItemId);
+                  const checked = newItemsSelected.has(item.id);
+                  const cat = item.categories?.elements?.[0]?.name ?? "Miscellaneous";
                   return (
                     <label
-                      key={item.cloverItemId}
+                      key={item.id}
                       className="flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleNewItem(item.cloverItemId)}
+                        onChange={() => toggleNewItem(item.id)}
                         className="accent-primary w-4 h-4 shrink-0"
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium leading-tight">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.category}</p>
+                        <p className="text-xs text-muted-foreground">{cat}</p>
                       </div>
                       <span className="font-mono text-sm font-semibold text-primary shrink-0">
-                        {fmt(item.price)}
+                        {fmtCents(item.price)}
                       </span>
                     </label>
                   );
@@ -468,52 +478,57 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
             ) : (
               <div className="mt-2 space-y-3">
                 {preview.changedItems.map((item) => {
-                  const resolution = conflictResolutions.get(item.tabbdItemId) ?? "clover";
+                  const key = item.tabbdItemId ?? item.cloverItem.id;
+                  const resolution = item.tabbdItemId
+                    ? (conflictResolutions.get(item.tabbdItemId) ?? "clover")
+                    : "clover";
                   return (
                     <div
-                      key={item.tabbdItemId}
+                      key={key}
                       className="rounded-md border border-border/60 p-3 space-y-2"
                     >
-                      <p className="text-sm font-semibold">{item.name}</p>
+                      <p className="text-sm font-semibold">{item.cloverItem.name}</p>
                       <div className="space-y-1">
-                        {item.changes.map((change) => (
-                          <div key={change.field} className="grid grid-cols-[80px_1fr_1fr] gap-2 text-xs">
-                            <span className="text-muted-foreground capitalize">{change.field}</span>
-                            <span className="text-foreground/70 truncate" title={change.tabbdValue ?? "—"}>
-                              Tabbd: {change.tabbdValue ?? "—"}
+                        {(item.diffs ?? []).map((diff) => (
+                          <div key={diff.field} className="grid grid-cols-[80px_1fr_1fr] gap-2 text-xs">
+                            <span className="text-muted-foreground capitalize">{diff.field}</span>
+                            <span className="text-foreground/70 truncate" title={String(diff.tabbdValue ?? "—")}>
+                              Tabbd: {String(diff.tabbdValue ?? "—")}
                             </span>
-                            <span className="text-primary truncate" title={change.cloverValue ?? "—"}>
-                              Clover: {change.cloverValue ?? "—"}
+                            <span className="text-primary truncate" title={String(diff.cloverValue ?? "—")}>
+                              Clover: {String(diff.cloverValue ?? "—")}
                             </span>
                           </div>
                         ))}
                       </div>
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setResolution(item.tabbdItemId, "clover")}
-                          className={[
-                            "flex-1 py-1.5 rounded text-xs font-medium border transition-colors",
-                            resolution === "clover"
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-transparent text-muted-foreground border-border hover:bg-muted/50",
-                          ].join(" ")}
-                        >
-                          Use Clover
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setResolution(item.tabbdItemId, "tabbd")}
-                          className={[
-                            "flex-1 py-1.5 rounded text-xs font-medium border transition-colors",
-                            resolution === "tabbd"
-                              ? "bg-muted text-foreground border-border"
-                              : "bg-transparent text-muted-foreground border-border hover:bg-muted/50",
-                          ].join(" ")}
-                        >
-                          Keep Tabbd
-                        </button>
-                      </div>
+                      {item.tabbdItemId && (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setResolution(item.tabbdItemId!, "clover")}
+                            className={[
+                              "flex-1 py-1.5 rounded text-xs font-medium border transition-colors",
+                              resolution === "clover"
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-transparent text-muted-foreground border-border hover:bg-muted/50",
+                            ].join(" ")}
+                          >
+                            Use Clover
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResolution(item.tabbdItemId!, "tabbd")}
+                            className={[
+                              "flex-1 py-1.5 rounded text-xs font-medium border transition-colors",
+                              resolution === "tabbd"
+                                ? "bg-muted text-foreground border-border"
+                                : "bg-transparent text-muted-foreground border-border hover:bg-muted/50",
+                            ].join(" ")}
+                          >
+                            Keep Tabbd
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -539,16 +554,16 @@ export default function CloverSyncDialog({ open, onOpenChange }: CloverSyncDialo
                   These items exist in Tabbd but not on Clover. Check items you want to delete.
                 </p>
                 {preview.deletedItems.map((item) => {
-                  const checked = deletedSelected.has(item.tabbdItemId);
+                  const checked = deletedSelected.has(item.id);
                   return (
                     <label
-                      key={item.tabbdItemId}
+                      key={item.id}
                       className="flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleDeleted(item.tabbdItemId)}
+                        onChange={() => toggleDeleted(item.id)}
                         className="accent-destructive w-4 h-4 shrink-0"
                       />
                       <p className="text-sm flex-1">{item.name}</p>

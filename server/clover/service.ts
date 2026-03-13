@@ -116,7 +116,7 @@ class CloverService {
       process.env.CLOVER_REDIRECT_URI ?? `${appBaseUrl}/api/clover/callback`
     );
 
-    return `${cloverBaseUrl}/oauth/v2/authorize?client_id=${appId}&redirect_uri=${redirectUri}&state=${state}`;
+    return `${cloverBaseUrl}/oauth/v2/authorize?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&state=${state}`;
   }
 
   async handleCallback(

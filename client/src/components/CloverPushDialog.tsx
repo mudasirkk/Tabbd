@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth, postWithAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -65,23 +65,20 @@ export default function CloverPushDialog({ open, onOpenChange }: CloverPushDialo
   const allSelected = itemIds.length > 0 && selected.size === itemIds.length;
   const noneSelected = selected.size === 0;
 
-  // Reset step and selection when dialog opens/closes
+  // Select all items when dialog opens or items load
+  useEffect(() => {
+    if (open && items && items.length > 0) {
+      setSelected(new Set(items.map((i) => i.id)));
+    }
+  }, [open, items]);
+
+  // Reset step and selection when dialog closes
   function handleOpenChange(next: boolean) {
     if (!next) {
       setStep("confirm");
       setPushResult(null);
-    } else if (items) {
-      setSelected(new Set(items.map((i) => i.id)));
     }
     onOpenChange(next);
-  }
-
-  // Pre-select all when items first load
-  if (items && selected.size === 0 && step === "confirm" && open) {
-    const ids = new Set(items.map((i) => i.id));
-    if (ids.size > 0 && selected.size !== ids.size) {
-      setSelected(ids);
-    }
   }
 
   function toggleItem(id: string) {

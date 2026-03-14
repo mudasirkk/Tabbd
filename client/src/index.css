@@ -361,4 +361,40 @@
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+
+  /* E4: Button press/active state feedback */
+  .press-scale:active {
+    transform: scale(0.97);
+  }
+
+  /* A9: Timer colon blink for active sessions */
+  @keyframes colon-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .timer-blink .timer-colon {
+    animation: colon-blink 1s ease-in-out infinite;
+  }
+
+  /* A1: Station card entrance animation */
+  @keyframes card-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .card-entrance {
+    animation: card-enter 0.3s ease-out both;
+  }
+
+  /* A6: Compact mobile stats pill */
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .stats-pill-compact {
+      display: flex !important;
+    }
+  }
 }

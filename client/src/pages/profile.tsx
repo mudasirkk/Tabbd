@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/hooks/useTheme";
 import { Moon, Sun, ArrowLeft, Upload, X, Link2, Unlink, RefreshCw, Upload as UploadIcon } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import CloverSyncDialog from "@/components/CloverSyncDialog";
 import CloverPushDialog from "@/components/CloverPushDialog";
 
@@ -204,18 +205,25 @@ export default function ProfilePage() {
     }
   }
 
-  if (!authReady) {
+  if (!authReady || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading…</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading…</p>
+      <div className="min-h-screen bg-background">
+        <div className="border-b border-border/50 px-4 py-3">
+          <div className="container mx-auto max-w-screen-xl flex items-center justify-between">
+            <Skeleton className="h-8 w-24" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-md" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </div>
+          </div>
+        </div>
+        <div className="container mx-auto max-w-screen-xl px-4 py-6 flex justify-center">
+          <div className="w-full max-w-xl space-y-6">
+            <Skeleton className="h-64 rounded-lg" />
+            <Skeleton className="h-40 rounded-lg" />
+            <Skeleton className="h-56 rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -367,8 +375,7 @@ export default function ProfilePage() {
                   <p className="text-sm font-medium">Clover POS</p>
                   {me?.cloverMerchantId ? (
                     <p className="text-xs text-muted-foreground">
-                      Connected to merchant {me.cloverMerchantId}
-                      {me.cloverConnectedAt && (
+                      Connected{me.cloverConnectedAt && (
                         <> since {new Date(me.cloverConnectedAt).toLocaleDateString()}</>
                       )}
                     </p>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowRightLeft, Check, Clock, Pencil, Receipt, ShoppingBag, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Check, Clock, PanelRightClose, Pencil, Receipt, ShoppingBag, Trash2, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ interface ActiveSessionPanelProps {
   onCheckout: () => void;
   onTransfer: () => void;
   onRequestRemoveItem: (item: SessionItem) => void;
+  onMinimize?: () => void;
   status?: "active" | "paused";
 }
 
@@ -55,6 +56,7 @@ export function ActiveSessionPanel({
   onCheckout,
   onTransfer,
   onRequestRemoveItem,
+  onMinimize,
   status = "active",
 }: ActiveSessionPanelProps) {
   const [activeTab, setActiveTab] = useState<"breakdown" | "items">("items");
@@ -99,23 +101,37 @@ export function ActiveSessionPanel({
   }, [items]);
 
   return (
-    <Card className="h-[calc(100dvh-7rem)] overflow-hidden p-4 lg:h-[calc(100vh-8rem)]" data-testid="panel-active-session">
-      <div className="flex h-full flex-col gap-3">
+    <Card className="h-[calc(100dvh-7rem)] overflow-hidden lg:h-[calc(100vh-8rem)] flex" data-testid="panel-active-session">
+      {/* Minimize side strip */}
+      {onMinimize && (
+        <button
+          className="flex items-center justify-center w-7 shrink-0 border-r border-border/50 text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+          onClick={onMinimize}
+          aria-label="Minimize panel"
+          data-testid="button-minimize-panel"
+        >
+          <PanelRightClose className="h-4 w-4" />
+        </button>
+      )}
+      <div className="flex h-full flex-1 min-w-0 flex-col gap-3 p-4">
 
         {/* Station header */}
         <div className="space-y-1">
           <div className="flex items-start justify-between gap-3">
-            <h2
-              className="text-2xl font-bold font-display leading-tight"
-              data-testid="text-panel-station-name"
-            >
-              {stationName}
-            </h2>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2
+                className="text-2xl font-bold font-display leading-tight truncate"
+                data-testid="text-panel-station-name"
+              >
+                {stationName}
+              </h2>
+            </div>
             <Badge className={status === "paused"
-              ? "bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30 shrink-0"
-              : "bg-primary/15 text-primary border border-primary/30 shrink-0"
+              ? "bg-chart-4/10 text-chart-4 border border-chart-4/30 shrink-0"
+              : "bg-chart-3/10 text-chart-3 border border-chart-3/30 shrink-0"
             }>
-              {status === "paused" ? "Paused" : "Active Session"}
+              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status === "paused" ? "bg-chart-4" : "bg-chart-3 animate-pulse"}`} />
+              {status === "paused" ? "Paused" : "Live"}
             </Badge>
           </div>
           <div className="flex items-center gap-2 min-w-0">

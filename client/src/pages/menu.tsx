@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTheme } from "@/hooks/useTheme";
-import { Moon, Sun, ArrowLeft, Package } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Moon, Sun, ArrowLeft, Package, Pencil, Trash2, Search, X } from "lucide-react";
 
 type MenuItem = {
   id: string;
@@ -46,6 +47,7 @@ export default function MenuManagementPage() {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MenuItem | null>(null);
+  const [menuSearch, setMenuSearch] = useState("");
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -57,9 +59,13 @@ export default function MenuManagementPage() {
 
   const grouped = useMemo(() => {
     const list = items ?? [];
+    const searchLower = menuSearch.trim().toLowerCase();
+    const filtered = searchLower
+      ? list.filter((it) => it.name.toLowerCase().includes(searchLower))
+      : list;
     const groups = new Map<string, MenuItem[]>();
 
-    for (const it of list) {
+    for (const it of filtered) {
       const cat = (it.category ?? "").trim() || "Miscellaneous";
       const arr = groups.get(cat) ?? [];
       arr.push(it);
@@ -76,7 +82,7 @@ export default function MenuManagementPage() {
       category: cat,
       items: (groups.get(cat) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
     }));
-  }, [items]);
+  }, [items, menuSearch]);
 
   function resetForm() {
     setName("");
@@ -177,18 +183,30 @@ export default function MenuManagementPage() {
     }
   }
 
-  if (!authReady) {
+  if (!authReady || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+      <div className="min-h-screen bg-background">
+        <div className="border-b border-border/50 px-4 py-3">
+          <div className="container mx-auto max-w-screen-xl flex items-center justify-between">
+            <Skeleton className="h-8 w-24" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+          </div>
+        </div>
+        <div className="container mx-auto max-w-screen-xl px-4 py-6 space-y-8">
+          {[1, 2].map((g) => (
+            <div key={g} className="space-y-3">
+              <Skeleton className="h-4 w-28" />
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-36 rounded-lg" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -234,21 +252,54 @@ export default function MenuManagementPage() {
       </header>
 
       <main className="container mx-auto max-w-screen-xl px-4 py-6">
+        {/* Search bar */}
+        {(items ?? []).length > 0 && (
+          <div className="mb-5 relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Search menu items..."
+              value={menuSearch}
+              onChange={(e) => setMenuSearch(e.target.value)}
+              className="h-9 pl-9 pr-8 text-sm"
+            />
+            {menuSearch && (
+              <button
+                type="button"
+                onClick={() => setMenuSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+
         {grouped.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-12 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50">
-              <Package className="w-7 h-7 text-muted-foreground" />
+              {menuSearch ? <Search className="w-7 h-7 text-muted-foreground" /> : <Package className="w-7 h-7 text-muted-foreground" />}
             </div>
-            <p className="font-medium text-foreground/60">No menu items yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">Click &quot;Add Item&quot; to create your first one.</p>
+            <p className="font-medium text-foreground/60">
+              {menuSearch ? "No items match your search" : "No menu items yet"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {menuSearch ? "Try a different search term." : "Click \"Add Item\" to create your first one."}
+            </p>
           </div>
         ) : (
           <div className="space-y-8">
             {grouped.map((group) => (
               <div key={group.category} className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  {group.category}
-                </p>
+                <div className="flex items-center gap-2 border-l-2 border-primary/40 pl-3">
+                  <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                    {group.category}
+                  </p>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {group.items.length}
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                   {group.items.map((it) => (
@@ -256,9 +307,11 @@ export default function MenuManagementPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold leading-tight">{it.name}</h3>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                            {it.description || "No description"}
-                          </p>
+                          {it.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                              {it.description}
+                            </p>
+                          )}
                         </div>
 
                         <div className="text-right shrink-0 space-y-1">
@@ -289,9 +342,16 @@ export default function MenuManagementPage() {
 
                       <div className="flex gap-2 border-t border-border/40 pt-3">
                         <Button variant="outline" className="flex-1" size="sm" onClick={() => openEdit(it)}>
+                          <Pencil className="w-3.5 h-3.5 mr-1" />
                           Edit
                         </Button>
-                        <Button variant="destructive" className="flex-1" size="sm" onClick={() => remove(it)}>
+                        <Button
+                          variant="outline"
+                          className="flex-1 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          size="sm"
+                          onClick={() => remove(it)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
                           Delete
                         </Button>
                       </div>

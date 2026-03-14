@@ -26,8 +26,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EditStationDialog } from "@/components/EditStationDialog";
 import { LoyaltyLookupDialog } from "@/components/LoyaltyLookupDialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +44,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /* ============================= TYPES ============================= */
 
@@ -188,6 +196,7 @@ export default function Dashboard() {
   const [removeTarget, setRemoveTarget] = useState<SessionItem | null>(null);
   const [removeQty, setRemoveQty] = useState<number>(1);
   const [isDragUnlocked, setIsDragUnlocked] = useState(false);
+  const [mobileSessionSheetOpen, setMobileSessionSheetOpen] = useState(false);
   const [dragStationId, setDragStationId] = useState<string | null>(null);
   const [dragOverStationId, setDragOverStationId] = useState<string | null>(null);
   const [reorderingStations, setReorderingStations] = useState(false);
@@ -585,18 +594,45 @@ export default function Dashboard() {
     }
   }
 
-  if(!authReady) {
+  if(!authReady || meLoading || stationsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (meLoading || stationsLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading…</p>
+      <div className="min-h-screen bg-background">
+        {/* Skeleton navbar */}
+        <div className="border-b border-border/50 px-4 py-3">
+          <div className="container mx-auto max-w-screen-xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+            </div>
+          </div>
+        </div>
+        {/* Skeleton content */}
+        <div className="container mx-auto max-w-screen-xl px-4 py-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Skeleton key={i} className="h-52 rounded-lg" />
+                ))}
+              </div>
+            </div>
+            <div className="lg:col-span-1">
+              <Skeleton className="h-96 rounded-lg" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -772,28 +808,37 @@ export default function Dashboard() {
                   Add Station
                 </Button>
               </div>
-              <Button
-                variant={isDragUnlocked ? "default" : "outline"}
-                size="sm"
-                onClick={() => setIsDragUnlocked((prev) => !prev)}
-                disabled={reorderingStations}
-                data-testid="button-toggle-station-order-lock"
-              >
-                {isDragUnlocked ? (
-                  <>
-                    <Unlock className="w-4 h-4 mr-2" />
-                    Unlocked
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4 mr-2" />
-                    Locked
-                  </>
-                )}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={isDragUnlocked ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setIsDragUnlocked((prev) => !prev)}
+                      disabled={reorderingStations}
+                      data-testid="button-toggle-station-order-lock"
+                    >
+                      {isDragUnlocked ? (
+                        <>
+                          <Unlock className="w-4 h-4 mr-2" />
+                          Unlocked
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4 mr-2" />
+                          Locked
+                        </>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isDragUnlocked ? "Lock station reordering" : "Unlock to drag and reorder stations"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {orderedStations.map((st) => {
+              {orderedStations.map((st, index) => {
                 const session = st.activeSession;
                 const isActive = !!session && session.status !== "closed";
                 const isPaused = session?.status === "paused";
@@ -814,7 +859,6 @@ export default function Dashboard() {
                     timeElapsed={isActive ? getTotalElapsedForStation(st) : 0}
                     currentCharge={isActive ? getTotalTimeChargeForStation(st, (session?.pricingTier ?? "group") as PricingTier) : 0}
                     onEdit={() => openEditStation(st)}
-                    onDelete={() => handleDeleteStation(st)}
                     onStart={() => {
                       setStationToStart(st);
                       setStartSessionOpen(true);
@@ -825,7 +869,16 @@ export default function Dashboard() {
                       setSelectedStationId(st.id);
                       openCheckoutWithAutoPause(st);
                     }}
-                    onClick={() => isActive && setSelectedStationId(st.id)}
+                    onClick={() => {
+                      if (!isActive) return;
+                      setSelectedStationId(st.id);
+                      // On mobile (< lg), open the session sheet
+                      if (window.innerWidth < 1024) {
+                        setMobileSessionSheetOpen(true);
+                      }
+                    }}
+                    isSelected={selectedStationId === st.id}
+                    animationDelay={index * 50}
                     dragEnabled={isDragUnlocked}
                     isDragOver={isDragUnlocked && dragOverStationId === st.id && dragStationId !== st.id}
                     dragHandleProps={{
@@ -856,14 +909,16 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Right Panel */}
-          <div className="lg:col-span-1">
+          {/* Right Panel — hidden on mobile, shown on lg+ */}
+          <div className="hidden lg:block lg:col-span-1">
             {selectedStation?.activeSession && selectedStation.activeSession.status !== "closed" ? (
               <div className="sticky top-24 space-y-4">
                 {activeStationsCount > 1 && (
                   <Select
                     value={selectedStationId ?? undefined}
-                    onValueChange={setSelectedStationId}
+                    onValueChange={(id) => {
+                      setSelectedStationId(id);
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -879,50 +934,106 @@ export default function Dashboard() {
                 )}
 
                 <ActiveSessionPanel
-                  stationName={selectedStation.name}
-                  status={selectedStation.activeSession.status}
-                  timeElapsed={getTotalElapsedForStation(selectedStation)}
-                  timeCharge={getTotalTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
-                  startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
-                  timeSegments={(selectedStation.activeSession.timeSegments ?? []).map((segment) => ({
-                    id: segment.id,
-                    stationName: segment.stationName,
-                    effectiveSeconds: segment.effectiveSeconds,
-                    pricingTier: segment.pricingTier,
-                    rateHourlyApplied: toNumber(segment.rateHourlyApplied),
-                    timeAmount: toNumber(segment.timeAmount),
-                  }))}
-                  currentPricingTier={selectedStation.activeSession.pricingTier}
-                  currentHourlyRate={
-                    selectedStation.activeSession.pricingTier === "solo"
-                      ? toNumber(selectedStation.rateSoloHourly)
-                      : toNumber(selectedStation.rateGroupHourly)
-                  }
-                  currentSegmentCharge={getCurrentSegmentChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
-                  customerName={selectedStation.activeSession.customerName ?? null}
-                  onUpdateName={(name) => handleUpdateSessionName(selectedStation.activeSession!.id, name)}
-                  items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
-                  onAddItems={() => setAddItemsOpen(true)}
-                  onCheckout={() => { if (selectedStation) openCheckoutWithAutoPause(selectedStation); }}
-                  onTransfer={() => setTransferOpen(true)}
-                  onRequestRemoveItem={openRemoveItemDialog}
-                />
+                    stationName={selectedStation.name}
+                    status={selectedStation.activeSession.status}
+                    timeElapsed={getTotalElapsedForStation(selectedStation)}
+                    timeCharge={getTotalTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
+                    startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
+                    timeSegments={(selectedStation.activeSession.timeSegments ?? []).map((segment) => ({
+                      id: segment.id,
+                      stationName: segment.stationName,
+                      effectiveSeconds: segment.effectiveSeconds,
+                      pricingTier: segment.pricingTier,
+                      rateHourlyApplied: toNumber(segment.rateHourlyApplied),
+                      timeAmount: toNumber(segment.timeAmount),
+                    }))}
+                    currentPricingTier={selectedStation.activeSession.pricingTier}
+                    currentHourlyRate={
+                      selectedStation.activeSession.pricingTier === "solo"
+                        ? toNumber(selectedStation.rateSoloHourly)
+                        : toNumber(selectedStation.rateGroupHourly)
+                    }
+                    currentSegmentCharge={getCurrentSegmentChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
+                    customerName={selectedStation.activeSession.customerName ?? null}
+                    onUpdateName={(name) => handleUpdateSessionName(selectedStation.activeSession!.id, name)}
+                    items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
+                    onAddItems={() => setAddItemsOpen(true)}
+                    onCheckout={() => { if (selectedStation) openCheckoutWithAutoPause(selectedStation); }}
+                    onTransfer={() => setTransferOpen(true)}
+                    onRequestRemoveItem={openRemoveItemDialog}
+                    onMinimize={() => setSelectedStationId(null)}
+                  />
               </div>
             ) : (
-              <div className="sticky top-24 rounded-lg border border-dashed border-border/60 bg-card/30 p-10 text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/50">
-                  <Clock className="w-7 h-7 text-muted-foreground" />
+              <div className="sticky top-24 rounded-lg border border-dashed border-border/60 bg-gradient-to-b from-card/50 to-muted/20 p-10 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 animate-pulse">
+                  <Clock className="w-8 h-8 text-primary/50" />
                 </div>
-                <p className="font-medium text-foreground/60">No active session selected</p>
+                <p className="font-semibold text-foreground/70">Select a station to begin</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Start or click an active station to view details here
+                  Click an active station to view session details
                 </p>
+                {totalStations > 0 && (
+                  <div className="mt-6 flex justify-center gap-6 text-xs text-muted-foreground">
+                    <div className="text-center">
+                      <p className="text-lg font-mono font-bold text-foreground/70">{activeStationsCount}</p>
+                      <p>Active</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-mono font-bold text-foreground/70">{pausedCount}</p>
+                      <p>Paused</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-mono font-bold text-foreground/70">{openCount}</p>
+                      <p>Available</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </main>
       
+      {/* Mobile session sheet — slides up from bottom on small screens */}
+      <Sheet open={mobileSessionSheetOpen} onOpenChange={setMobileSessionSheetOpen}>
+        <SheetContent side="bottom" className="h-[85dvh] overflow-y-auto p-4 lg:hidden">
+          <SheetTitle className="sr-only">Session Details</SheetTitle>
+          {selectedStation?.activeSession && selectedStation.activeSession.status !== "closed" && (
+            <ActiveSessionPanel
+              stationName={selectedStation.name}
+              status={selectedStation.activeSession.status}
+              timeElapsed={getTotalElapsedForStation(selectedStation)}
+              timeCharge={getTotalTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
+              startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
+              timeSegments={(selectedStation.activeSession.timeSegments ?? []).map((segment) => ({
+                id: segment.id,
+                stationName: segment.stationName,
+                effectiveSeconds: segment.effectiveSeconds,
+                pricingTier: segment.pricingTier,
+                rateHourlyApplied: toNumber(segment.rateHourlyApplied),
+                timeAmount: toNumber(segment.timeAmount),
+              }))}
+              currentPricingTier={selectedStation.activeSession.pricingTier}
+              currentHourlyRate={
+                selectedStation.activeSession.pricingTier === "solo"
+                  ? toNumber(selectedStation.rateSoloHourly)
+                  : toNumber(selectedStation.rateGroupHourly)
+              }
+              currentSegmentCharge={getCurrentSegmentChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
+              customerName={selectedStation.activeSession.customerName ?? null}
+              onUpdateName={(name) => handleUpdateSessionName(selectedStation.activeSession!.id, name)}
+              items={aggregateSessionItems(selectedStation.activeSession.items ?? [], menu ?? [])}
+              onAddItems={() => setAddItemsOpen(true)}
+              onCheckout={() => { if (selectedStation) openCheckoutWithAutoPause(selectedStation); }}
+              onTransfer={() => setTransferOpen(true)}
+              onRequestRemoveItem={openRemoveItemDialog}
+              onMinimize={() => setMobileSessionSheetOpen(false)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
       {/* Setup Station (Create) */}
       <SetupStationDialog
         open={setupStationOpen}
@@ -937,6 +1048,10 @@ export default function Dashboard() {
         onOpenChange={setEditStationOpen}
         station={stationToEdit}
         onSave={handleSaveStation}
+        onDelete={(station) => {
+          const st = (stations ?? []).find((s) => s.id === station.id);
+          if (st) handleDeleteStation(st);
+        }}
       />
 
       {/* Start Session */}

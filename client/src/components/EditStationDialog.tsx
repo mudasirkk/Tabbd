@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Trash2 } from "lucide-react";
+import { PoolBallIcon, GameControllerIcon, FoosballTableIcon } from "@/components/StationCard";
 
 type StationType = "pool" | "gaming" | "foosball";
 
@@ -20,6 +22,12 @@ export interface EditStationDialogStation {
     rateGroupHourly: string | number;
     isEnabled: boolean;
 }
+
+const stationIconColor: Record<StationType, string> = {
+    pool: "text-chart-1",
+    gaming: "text-chart-2",
+    foosball: "text-chart-3",
+};
 
 interface EditStationDialogProps {
     open: boolean;
@@ -33,6 +41,7 @@ interface EditStationDialogProps {
         rateGroupHourly: string;
         isEnabled: boolean;
     }) => Promise<void> | void;
+    onDelete?: (station: EditStationDialogStation) => void;
 }
 
 function toNumber(v: string | number | null | undefined): number {
@@ -45,6 +54,7 @@ open,
 onOpenChange,
 station,
 onSave,
+onDelete,
 }: EditStationDialogProps) {
 const [name, setName] = useState("");
 const [stationType, setStationType] = useState<StationType>("pool");
@@ -137,6 +147,7 @@ return (
                 onClick={() => setStationType("pool")}
                 data-testid="button-type-pool"
                 >
+                <span className={stationType === "pool" ? "" : stationIconColor.pool}><PoolBallIcon /></span>
                 Pool
                 </Button>
                 <Button
@@ -146,6 +157,7 @@ return (
                 onClick={() => setStationType("gaming")}
                 data-testid="button-type-gaming"
                 >
+                <span className={stationType === "gaming" ? "" : stationIconColor.gaming}><GameControllerIcon /></span>
                 Gaming
                 </Button>
                 <Button
@@ -155,6 +167,7 @@ return (
                 onClick={() => setStationType("foosball")}
                 data-testid="button-type-foosball"
                 >
+                <span className={stationType === "foosball" ? "" : stationIconColor.foosball}><FoosballTableIcon /></span>
                 Foosball
                 </Button>
             </div>
@@ -203,6 +216,21 @@ return (
         )}
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
+        {station && onDelete && (
+            <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 sm:mr-auto"
+                onClick={() => {
+                    onOpenChange(false);
+                    onDelete(station);
+                }}
+                disabled={saving}
+                data-testid="button-delete-station-from-edit"
+            >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Delete Station
+            </Button>
+        )}
         <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

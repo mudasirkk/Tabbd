@@ -1,7 +1,6 @@
 import {
   LogOut,
   Moon,
-  Pause,
   Sun,
   Search,
   Settings as SettingsIcon,
@@ -67,7 +66,7 @@ export function SummaryNavbar({
           </div>
         </div>
 
-        {/* Center: Stats Pill */}
+        {/* Center: Stats Pill — full on lg, compact on sm-md */}
         <div className="hidden lg:flex items-center gap-3 rounded-full bg-card/60 border border-border/50 px-5 py-2">
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-sky-500" />
@@ -85,6 +84,21 @@ export function SummaryNavbar({
             <span className="h-2 w-2 rounded-full bg-amber-500" />
             <span className="text-xs font-medium font-mono">{pausedCount}</span>
             <span className="text-xs text-muted-foreground">Paused</span>
+          </div>
+        </div>
+        {/* Compact stats for sm-md screens */}
+        <div className="hidden sm:flex lg:hidden items-center gap-2 rounded-full bg-card/60 border border-border/50 px-3 py-1.5">
+          <div className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-sky-500" />
+            <span className="text-xs font-medium font-mono">{openCount}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-xs font-medium font-mono">{activeCount}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span className="text-xs font-medium font-mono">{pausedCount}</span>
           </div>
         </div>
 
@@ -114,7 +128,7 @@ export function SummaryNavbar({
           >
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
-          <Button variant="destructive" size="sm" onClick={onLogout}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={onLogout}>
             <LogOut className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Log out</span>
           </Button>

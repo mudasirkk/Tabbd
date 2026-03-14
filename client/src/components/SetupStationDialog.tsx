@@ -9,8 +9,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PoolBallIcon, GameControllerIcon, FoosballTableIcon } from "@/components/StationCard";
 
 type StationType = "pool" | "gaming" | "foosball";
+
+const stationIconColor: Record<StationType, string> = {
+  pool: "text-chart-1",
+  gaming: "text-chart-2",
+  foosball: "text-chart-3",
+};
 
 export interface SetupStationPayload {
   name: string;
@@ -116,6 +123,7 @@ export function SetupStationDialog({
                 className="flex-1"
                 onClick={() => setStationType("pool")}
               >
+                <span className={stationType === "pool" ? "" : stationIconColor.pool}><PoolBallIcon /></span>
                 Pool
               </Button>
               <Button
@@ -124,6 +132,7 @@ export function SetupStationDialog({
                 className="flex-1"
                 onClick={() => setStationType("gaming")}
               >
+                <span className={stationType === "gaming" ? "" : stationIconColor.gaming}><GameControllerIcon /></span>
                 Gaming
               </Button>
               <Button
@@ -132,6 +141,7 @@ export function SetupStationDialog({
                 className="flex-1"
                 onClick={() => setStationType("foosball")}
               >
+                <span className={stationType === "foosball" ? "" : stationIconColor.foosball}><FoosballTableIcon /></span>
                 Foosball
               </Button>
             </div>

@@ -1,4 +1,4 @@
-import { Clock, Play, Square, Pencil, Trash2, Receipt, GripVertical } from "lucide-react";
+import { Clock, Play, Square, Pencil, Receipt, GripVertical } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,8 @@ interface StationCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onClick?: () => void;
+  isSelected?: boolean;
+  animationDelay?: number;
   dragEnabled?: boolean;
   dragHandleProps?: HTMLAttributes<HTMLDivElement>;
   dropZoneProps?: HTMLAttributes<HTMLDivElement>;
@@ -37,6 +39,19 @@ const stationLeftBorder: Record<StationType, string> = {
   pool: "border-l-chart-1",
   gaming: "border-l-chart-2",
   foosball: "border-l-chart-3",
+};
+
+const stationSelectedRing: Record<StationType, string> = {
+  pool: "ring-2 ring-chart-1/50",
+  gaming: "ring-2 ring-chart-2/50",
+  foosball: "ring-2 ring-chart-3/50",
+};
+
+/* Light mode only: subtle background tint per station type */
+const stationLightBg: Record<StationType, string> = {
+  pool: "dark:bg-transparent bg-[hsl(198_85%_95%)]",
+  gaming: "dark:bg-transparent bg-[hsl(271_81%_96%)]",
+  foosball: "dark:bg-transparent bg-[hsl(142_76%_95%)]",
 };
 
 const stationBadgeColors: Record<StationType, string> = {
@@ -139,6 +154,8 @@ function StationTypeIcon({ type, size = 42 }: { type: StationType; size?: number
   );
 }
 
+export { PoolBallIcon, GameControllerIcon, FoosballTableIcon, StationTypeIcon };
+
 /* ─── Status Badge ───────────────────────────────────────────────── */
 
 type StatusState = "active" | "paused" | "available";
@@ -190,17 +207,28 @@ export function StationCard({
   onEdit,
   onDelete,
   onClick,
+  isSelected = false,
+  animationDelay = 0,
   dragEnabled = false,
   dragHandleProps,
   dropZoneProps,
   isDragOver = false,
 }: StationCardProps) {
-  const formatTime = (seconds: number) => {
+  const formatTimeParts = (seconds: number) => {
     const s = Math.max(0, Math.floor(seconds));
     const hrs = Math.floor(s / 3600);
     const mins = Math.floor((s % 3600) / 60);
     const secs = s % 60;
-    return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    return {
+      hrs: hrs.toString().padStart(2, "0"),
+      mins: mins.toString().padStart(2, "0"),
+      secs: secs.toString().padStart(2, "0"),
+    };
+  };
+
+  const formatTime = (seconds: number) => {
+    const { hrs, mins, secs } = formatTimeParts(seconds);
+    return `${hrs}:${mins}:${secs}`;
   };
 
   const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
@@ -227,13 +255,17 @@ export function StationCard({
   return (
     <Card
       className={cn(
-        "border-l-4 hover-elevate cursor-pointer transition-all",
+        "border-l-4 hover-elevate cursor-pointer transition-all card-entrance",
+        "hover:scale-[1.01] hover:shadow-md",
         stationLeftBorder[type],
-        isActive && !isPaused && "ring-1 ring-chart-3/30",
-        isActive && isPaused && "ring-1 ring-chart-4/30",
+        stationLightBg[type],
+        isSelected && stationSelectedRing[type],
+        !isSelected && isActive && !isPaused && "ring-1 ring-chart-3/30",
+        !isSelected && isActive && isPaused && "ring-1 ring-chart-4/30",
         !isActive && "opacity-75",
         isDragOver && "ring-2 ring-primary"
       )}
+      style={{ animationDelay: `${animationDelay}ms` }}
       onClick={onClick}
       data-testid={`card-station-${id}`}
       {...dropZoneProps}
@@ -300,20 +332,6 @@ export function StationCard({
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete?.();
-                }}
-                disabled={!onDelete}
-                aria-label="Delete station"
-                data-testid={`button-delete-${id}`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
             </div>
           </div>
         </div>
@@ -335,13 +353,13 @@ export function StationCard({
                   Started {formatStartTime(startTime)}
                 </div>
               )}
-              <div className="flex items-center justify-center gap-2">
+              <div className={cn("flex items-center justify-center gap-2", !isPaused && "timer-blink")}>
                 <Clock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                 <span
                   className="text-2xl font-mono font-bold text-foreground leading-none"
                   data-testid={`text-timer-${id}`}
                 >
-                  {formatTime(timeElapsed)}
+                  {(() => { const p = formatTimeParts(timeElapsed); return <>{p.hrs}<span className="timer-colon">:</span>{p.mins}<span className="timer-colon">:</span>{p.secs}</>; })()}
                 </span>
               </div>
               <div>

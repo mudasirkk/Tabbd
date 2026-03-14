@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTheme } from "@/hooks/useTheme";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Moon, Sun, ArrowLeft, Clock, Search, X, Loader2, CalendarDays } from "lucide-react";
 
 interface SessionHistoryItem {
@@ -223,8 +224,10 @@ export default function HistoryPage() {
             </Card>
           </div>
         ) : isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-40 rounded-lg" />
+            ))}
           </div>
         ) : rows.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-12 text-center">

@@ -151,7 +151,7 @@ export const updateLogoSchema = z.object({
 
 /** Body for POST /api/settings: threshold in hours (converted to seconds on server), rate 0–1 */
 export const updateDiscountSettingsSchema = z.object({
-  discountThresholdHours: z.coerce.number().min(0),
+  discountThresholdHours: z.coerce.number().min(1, "Threshold must be at least 1 hour"),
   discountRate: z.coerce.number().min(0).max(1),
 });
 

@@ -12,6 +12,7 @@ import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { StartSessionDialog } from "@/components/StartSessionDialog";
 import { TransferSessionDialog } from "@/components/TransferSessionDialog";
 import { PaymentProcessingOverlay } from "@/components/PaymentProcessingOverlay";
+import { CashConfirmationOverlay } from "@/components/CashConfirmationOverlay";
 import { SummaryNavbar } from "@/components/SummaryNavbar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +47,7 @@ interface MeResponse {
   email: string | null;
   storeName: string | null;
   logoDataUrl: string | null;
+  cloverMerchantId: string | null;
 }
 
 interface ApiSessionItem {
@@ -157,7 +159,9 @@ export default function Dashboard() {
   const [creatingStation, setCreatingStation] = useState(false);
 
   //right side panel selection
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(
+    () => sessionStorage.getItem("tabbd:selectedStationId") ?? null
+  );
 
   //dialogs
   const [startSessionOpen, setStartSessionOpen] = useState(false);
@@ -173,6 +177,7 @@ export default function Dashboard() {
 
   // payment overlay (still optional UI)
   const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
+  const [showCashConfirmation, setShowCashConfirmation] = useState(false);
   const [paymentData, setPaymentData] = useState({ totalAmount: 0, itemCount: 0 });
 
   const [editStationOpen, setEditStationOpen] = useState(false);
@@ -189,6 +194,14 @@ export default function Dashboard() {
   const [localStationOrder, setLocalStationOrder] = useState<string[] | null>(null);
   const autoPausedSessionIdRef = useRef<string | null>(null);
 
+
+  useEffect(() => {
+    if (selectedStationId) {
+      sessionStorage.setItem("tabbd:selectedStationId", selectedStationId);
+    } else {
+      sessionStorage.removeItem("tabbd:selectedStationId");
+    }
+  }, [selectedStationId]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -546,11 +559,20 @@ export default function Dashboard() {
       });
 
       setCheckoutOpen(false);
-      setPaymentData({
-        totalAmount: grandTotal,
-        itemCount: (st.activeSession.items ?? []).reduce((sum, row) => sum + row.qty, 0),
-      });
-      setShowPaymentProcessing(true);
+
+      if (me?.cloverMerchantId) {
+        setPaymentData({
+          totalAmount: grandTotal,
+          itemCount: (st.activeSession.items ?? []).reduce((sum, row) => sum + row.qty, 0),
+        });
+        setShowPaymentProcessing(true);
+      } else {
+        setPaymentData({
+          totalAmount: grandTotal,
+          itemCount: (st.activeSession.items ?? []).reduce((sum, row) => sum + row.qty, 0),
+        });
+        setShowCashConfirmation(true);
+      }
 
       await qc.invalidateQueries({ queryKey: ["stations"] });
       await qc.invalidateQueries({ queryKey: ["session-history"] });
@@ -858,6 +880,7 @@ export default function Dashboard() {
 
                 <ActiveSessionPanel
                   stationName={selectedStation.name}
+                  status={selectedStation.activeSession.status}
                   timeElapsed={getTotalElapsedForStation(selectedStation)}
                   timeCharge={getTotalTimeChargeForStation(selectedStation, selectedStation.activeSession.pricingTier)}
                   startTime={new Date(selectedStation.activeSession.startedAt).getTime()}
@@ -1080,6 +1103,16 @@ export default function Dashboard() {
         show={showPaymentProcessing}
         onComplete={() => {
           setShowPaymentProcessing(false);
+          setSelectedStationId(null);
+        }}
+        totalAmount={paymentData.totalAmount}
+        itemCount={paymentData.itemCount}
+      />
+
+      <CashConfirmationOverlay
+        show={showCashConfirmation}
+        onComplete={() => {
+          setShowCashConfirmation(false);
           setSelectedStationId(null);
         }}
         totalAmount={paymentData.totalAmount}

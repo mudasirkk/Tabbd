@@ -396,8 +396,8 @@ class SessionStorage {
 
       if (destActive.length > 0) throw new Error("Destination station already has an active session");
 
-      const endedAt = sess.status === "paused" && sess.pausedAt ? sess.pausedAt : new Date();
       const now = new Date();
+      const endedAt = sess.status === "paused" && sess.pausedAt ? sess.pausedAt : now;
       const priorTier = endingPricingTier ?? sess.pricingTier;
 
       await this.createSegmentSnapshot(tx, {

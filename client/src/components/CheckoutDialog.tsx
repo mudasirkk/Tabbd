@@ -32,6 +32,18 @@ import {
 import { fetchWithAuth, postWithAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits.length ? `(${digits}` : "";
+  if (digits.length <= 6) return `(${digits.slice(0, 3)})${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)})${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  return digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+}
+
 interface CheckoutItem {
   id: string;
   name: string;
@@ -102,6 +114,7 @@ export function CheckoutDialog({
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [discountConfirmOpen, setDiscountConfirmOpen] = useState(false);
   const [loyaltyPhoneError, setLoyaltyPhoneError] = useState<string | null>(null);
+  const [loyaltyNewCustomerPrompt, setLoyaltyNewCustomerPrompt] = useState(false);
   const [timeExpanded, setTimeExpanded] = useState(false);
   const [itemsExpanded, setItemsExpanded] = useState(false);
   const [loyaltyExpanded, setLoyaltyExpanded] = useState(false);
@@ -114,7 +127,8 @@ export function CheckoutDialog({
   const storeDiscountRatePct =
     me?.discountRate != null ? Math.round(parseFloat(me.discountRate) * 100) : 20;
 
-  const hasValidPhone = (value: string) => value.replace(/\D/g, "").length >= 10;
+  const hasValidPhone = (value: string) => normalizePhone(value).length >= 10;
+  const [loyaltyAddTime, setLoyaltyAddTime] = useState(true);
 
   const totalSecondsPlayed = Math.round(accruedTimeSeconds + currentSegmentSeconds);
   const currentHourlyRate = selectedPricingTier === "solo" ? soloHourlyRate : groupHourlyRate;
@@ -178,6 +192,8 @@ export function CheckoutDialog({
     setAppliedDiscountRate(null);
     setDiscountConfirmOpen(false);
     setLoyaltyPhoneError(null);
+    setLoyaltyNewCustomerPrompt(false);
+    setLoyaltyAddTime(true);
     setItemsExpanded(false);
     setTimeExpanded(false);
     setLoyaltyExpanded(false);
@@ -195,6 +211,8 @@ export function CheckoutDialog({
     setDiscountApplied(false);
     setAppliedDiscountRate(null);
     setLoyaltyPhoneError(null);
+    setLoyaltyNewCustomerPrompt(false);
+    setLoyaltyAddTime(true);
     setIsSplitBill(false);
     setSplitCountInput(String(MIN_SPLIT_COUNT));
     setTimeExpanded(false);
@@ -429,13 +447,14 @@ export function CheckoutDialog({
               {loyaltyExpanded && (
                 <div className="mt-3 space-y-2">
                   <Input
-                    placeholder="Phone number"
+                    placeholder="(555)555-5555"
                     value={loyaltyPhone}
                     onChange={(e) => {
-                      setLoyaltyPhone(e.target.value);
+                      setLoyaltyPhone(formatPhone(e.target.value));
                       setLoyaltyPhoneError(null);
+                      setLoyaltyNewCustomerPrompt(false);
                     }}
-                    className={loyaltyPhoneError ? "border-destructive" : undefined}
+                    className={`font-mono ${loyaltyPhoneError ? "border-destructive" : ""}`}
                     data-testid="input-loyalty-phone"
                   />
                   {loyaltyPhoneError && (
@@ -443,6 +462,51 @@ export function CheckoutDialog({
                       {loyaltyPhoneError}
                     </p>
                   )}
+                  {loyaltyNewCustomerPrompt && (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+                      <p className="text-sm text-foreground">
+                        No loyalty record found. Create new customer, or enter a different number?
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            const btn = document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-checkout"]');
+                            btn?.click();
+                          }}
+                          data-testid="button-create-new-customer"
+                        >
+                          Create New Customer
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setLoyaltyNewCustomerPrompt(false);
+                            setLoyaltyPhone("");
+                          }}
+                        >
+                          Clear Phone
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between rounded-md border p-2">
+                    <span className="text-xs text-muted-foreground">Add session time to loyalty</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={loyaltyAddTime ? "default" : "outline"}
+                      onClick={() => setLoyaltyAddTime((prev) => !prev)}
+                      data-testid="button-toggle-add-time"
+                    >
+                      {loyaltyAddTime ? "On" : "Off"}
+                    </Button>
+                  </div>
+
                   <Button
                     type="button"
                     variant="outline"
@@ -450,8 +514,8 @@ export function CheckoutDialog({
                     disabled={checkDiscountLoading || discountApplied}
                     onClick={async () => {
                       setLoyaltyPhoneError(null);
-                      const phone = loyaltyPhone.trim();
-                      if (!phone || !hasValidPhone(phone)) {
+                      const phone = normalizePhone(loyaltyPhone);
+                      if (!phone || !hasValidPhone(loyaltyPhone)) {
                         setLoyaltyPhoneError("Please enter a valid phone number");
                         return;
                       }
@@ -598,18 +662,31 @@ export function CheckoutDialog({
               disabled={checkoutLoading}
               onClick={async () => {
                 setLoyaltyPhoneError(null);
-                const phone = loyaltyPhone.trim();
-                if (phone && !discountApplied && !hasValidPhone(phone)) {
+                const phone = normalizePhone(loyaltyPhone);
+                if (phone && !discountApplied && !hasValidPhone(loyaltyPhone)) {
                   setLoyaltyPhoneError("Please enter a valid phone number");
                   return;
                 }
 
                 setCheckoutLoading(true);
                 try {
-                  if (phone && !discountApplied) {
+                  if (phone && loyaltyAddTime && !discountApplied) {
+                    // Check if customer exists before auto-creating
+                    const lookupRes = await fetchWithAuth<{ customer: unknown } | { customer: null }>(
+                      `/api/customers/phone/${encodeURIComponent(phone)}`
+                    );
+                    const customerExists = "customer" in lookupRes && lookupRes.customer !== null;
+
+                    if (!customerExists && !loyaltyNewCustomerPrompt) {
+                      setLoyaltyNewCustomerPrompt(true);
+                      setCheckoutLoading(false);
+                      return;
+                    }
+
                     await postWithAuth(`/api/customers/${encodeURIComponent(phone)}/seconds`, {
                       seconds: totalSecondsPlayed,
                     });
+                    setLoyaltyNewCustomerPrompt(false);
                   }
                   onConfirmCheckout({
                     timeCharge: recalculatedTimeCharge,
@@ -659,7 +736,7 @@ export function CheckoutDialog({
             </Button>
             <Button
               onClick={async () => {
-                const phone = loyaltyPhone.trim();
+                const phone = normalizePhone(loyaltyPhone);
                 if (!phone) return;
                 try {
                   const res = await postWithAuth<{ customer: unknown; discountRate: string }>(

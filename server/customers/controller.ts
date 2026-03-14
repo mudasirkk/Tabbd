@@ -122,7 +122,7 @@ export async function lookupCustomerByPhone(req: Request, res: Response) {
   try {
     const userId = getUserId(req);
     const result = await customerService.lookupByPhone(userId, req.params.phoneNumber);
-    if (!result) return res.status(404).json({ error: "Customer not found" });
+    if (!result) return res.json({ customer: null });
     res.json(result);
   } catch (err) {
     const { status, message } = toHttpError(err);

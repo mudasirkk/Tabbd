@@ -29,8 +29,7 @@ export function StartSessionDialog({
   rateGroupHourly,
   onConfirmStart,
 }: StartSessionDialogProps) {
-  const now = new Date();
-  const defaultTime = now.toTimeString().slice(0, 5); // HH:MM format
+  const defaultTime = new Date().toTimeString().slice(0, 5); // HH:MM format
   const [customTime, setCustomTime] = useState(defaultTime);
   const [pricingTier, setPricingTier] = useState<"solo" | "group">("solo");
   const [customerName, setCustomerName] = useState("");
@@ -46,9 +45,10 @@ export function StartSessionDialog({
 
   const handleConfirm = () => {
     const [hours, minutes] = customTime.split(':').map(Number);
+    const now = new Date();
     const startDate = new Date();
     startDate.setHours(hours, minutes, 0, 0);
-    
+
     // If the time is in the future, assume it was yesterday
     if (startDate > now) {
       startDate.setDate(startDate.getDate() - 1);
@@ -146,7 +146,7 @@ export function StartSessionDialog({
               className="font-mono text-lg"
             />
             <p className="text-xs text-muted-foreground">
-              Current time: {defaultTime}
+              Current time: {new Date().toTimeString().slice(0, 5)}
             </p>
           </div>
         </div>

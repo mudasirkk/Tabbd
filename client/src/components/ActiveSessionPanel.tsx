@@ -36,6 +36,7 @@ interface ActiveSessionPanelProps {
   onCheckout: () => void;
   onTransfer: () => void;
   onRequestRemoveItem: (item: SessionItem) => void;
+  status?: "active" | "paused";
 }
 
 export function ActiveSessionPanel({
@@ -54,6 +55,7 @@ export function ActiveSessionPanel({
   onCheckout,
   onTransfer,
   onRequestRemoveItem,
+  status = "active",
 }: ActiveSessionPanelProps) {
   const [activeTab, setActiveTab] = useState<"breakdown" | "items">("items");
   const [isEditingName, setIsEditingName] = useState(false);
@@ -109,8 +111,11 @@ export function ActiveSessionPanel({
             >
               {stationName}
             </h2>
-            <Badge className="bg-primary/15 text-primary border border-primary/30 shrink-0">
-              Active Session
+            <Badge className={status === "paused"
+              ? "bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30 shrink-0"
+              : "bg-primary/15 text-primary border border-primary/30 shrink-0"
+            }>
+              {status === "paused" ? "Paused" : "Active Session"}
             </Badge>
           </div>
           <div className="flex items-center gap-2 min-w-0">
@@ -328,9 +333,7 @@ export function ActiveSessionPanel({
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="flex-1" />
-              )}
+              ) : null}
 
               <div className="flex items-center justify-between border-t pt-2 shrink-0">
                 <span className="text-sm font-medium text-muted-foreground">Items Subtotal</span>

@@ -39,7 +39,14 @@ export default function SignIn() {
       }
       window.location.replace("/dashboard");
     } catch (e: any) {
-      setError(e?.message ?? "Authentication failed");
+      const code = e?.code ?? "";
+      const friendly: Record<string, string> = {
+        "auth/invalid-credential": "Invalid email or password.",
+        "auth/email-already-in-use": "An account with this email already exists.",
+        "auth/weak-password": "Password must be at least 6 characters.",
+        "auth/too-many-requests": "Too many attempts. Try again later.",
+      };
+      setError(friendly[code] ?? "Authentication failed. Please try again.");
     } finally {
       setBusy(false);
     }

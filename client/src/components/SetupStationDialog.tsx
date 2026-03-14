@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,7 @@ export function SetupStationDialog({
       <DialogContent className="max-w-lg" data-testid="dialog-setup-station">
         <DialogHeader>
           <DialogTitle>Setup Station</DialogTitle>
+          <DialogDescription>Configure your new station's name, type, and pricing.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

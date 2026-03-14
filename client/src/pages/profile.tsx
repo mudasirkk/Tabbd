@@ -180,8 +180,8 @@ export default function ProfilePage() {
   async function saveLoyalty() {
     const hours = Number(discountThresholdHours);
     const pct = Number(discountRatePct);
-    if (Number.isNaN(hours) || hours < 0) {
-      toast({ title: "Enter valid hours (0 or more)", variant: "destructive" });
+    if (Number.isNaN(hours) || hours < 1) {
+      toast({ title: "Threshold must be at least 1 hour", variant: "destructive" });
       return;
     }
     if (Number.isNaN(pct) || pct < 0 || pct > 100) {

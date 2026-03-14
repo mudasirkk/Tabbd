@@ -4,6 +4,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,7 @@ return (
     <DialogContent className="max-w-lg" data-testid="dialog-edit-station">
         <DialogHeader>
         <DialogTitle>Edit Station</DialogTitle>
+        <DialogDescription>Update this station's name, type, and pricing.</DialogDescription>
         </DialogHeader>
 
         {!station ? (

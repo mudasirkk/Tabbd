@@ -9,4 +9,4 @@ vite.config.ts.*
 client/.env
 .claude/
 .playwright-mcp/
-.orchestrator/
+tasks/

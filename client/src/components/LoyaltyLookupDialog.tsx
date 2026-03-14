@@ -55,13 +55,20 @@ export function LoyaltyLookupDialog({ open, onOpenChange }: LoyaltyLookupDialogP
     setError(null);
     setResult(null);
     try {
-      const data = await fetchWithAuth<LookupResult>(`/api/customers/phone/${normalized}`);
-      setResult(data);
-    } catch (e: any) {
-      if (e?.status === 404 || e?.message?.includes("404") || e?.message?.toLowerCase().includes("not found")) {
+      const data = await fetchWithAuth<LookupResult | { customer: null }>(`/api/customers/phone/${normalized}`);
+      if ("customer" in data && data.customer === null) {
         setResult("new");
       } else {
-        setError(e?.message ?? "Something went wrong");
+        setResult(data as LookupResult);
+      }
+    } catch (e: any) {
+      const raw = e?.message ?? "";
+      if (raw.toLowerCase().includes("not found") || raw.includes("404")) {
+        setResult("new");
+      } else if (raw.toLowerCase().includes("network") || raw.toLowerCase().includes("fetch")) {
+        setError("Unable to reach the server. Check your connection and try again.");
+      } else {
+        setError("Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
